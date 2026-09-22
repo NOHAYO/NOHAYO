@@ -10,6 +10,7 @@ import com.nohayo.companion.MainActivity;
 import com.nohayo.companion.model.Child;
 import com.nohayo.companion.model.FamilyMember;
 import com.nohayo.companion.ui.Dp;
+import com.nohayo.companion.ui.Mode;
 import com.nohayo.companion.ui.Screen;
 import com.nohayo.companion.ui.Theme;
 import com.nohayo.companion.ui.UiKit;
@@ -68,7 +69,7 @@ public class OnboardingFamilyScreen implements Screen {
             host.repo().insertFamilyMember(you);
 
             host.setChild(draft);
-            host.switchTab(0);
+            host.switchMode(Mode.PARENT);
         }));
 
         return col;

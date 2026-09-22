@@ -129,25 +129,31 @@ public final class UiKit {
     }
 
     public static Button primaryButton(Context ctx, String label, Action onClick) {
-        Button b = buttonBase(ctx, label);
-        b.setBackground(roundedBg(Theme.TERRACOTTA, Theme.RADIUS_BUTTON, ctx));
-        b.setTextColor(Theme.WHITE);
-        b.setOnClickListener(v -> onClick.run());
-        return b;
+        return filledButton(ctx, label, Theme.TERRACOTTA, Theme.WHITE, onClick);
     }
 
     public static Button greenButton(Context ctx, String label, Action onClick) {
+        return filledButton(ctx, label, Theme.GREEN, Theme.WHITE, onClick);
+    }
+
+    /** A filled, pill-shaped button in an arbitrary skin accent color. */
+    public static Button filledButton(Context ctx, String label, int bgColor, int textColor, Action onClick) {
         Button b = buttonBase(ctx, label);
-        b.setBackground(roundedBg(Theme.GREEN, Theme.RADIUS_BUTTON, ctx));
-        b.setTextColor(Theme.WHITE);
+        b.setBackground(roundedBg(bgColor, Theme.RADIUS_BUTTON, ctx));
+        b.setTextColor(textColor);
         b.setOnClickListener(v -> onClick.run());
         return b;
     }
 
     public static Button outlineButton(Context ctx, String label, Action onClick) {
+        return outlineButton(ctx, label, Theme.TEXT_INK, onClick);
+    }
+
+    /** An outlined button whose label/border use an arbitrary skin accent color. */
+    public static Button outlineButton(Context ctx, String label, int color, Action onClick) {
         Button b = buttonBase(ctx, label);
         b.setBackground(roundedStroke(ctx, Theme.BG_CREAM, Theme.LINE, 1.3f, Theme.RADIUS_BUTTON));
-        b.setTextColor(Theme.TEXT_INK);
+        b.setTextColor(color);
         b.setOnClickListener(v -> onClick.run());
         return b;
     }
@@ -165,13 +171,17 @@ public final class UiKit {
     }
 
     public static TextView chip(Context ctx, String text, boolean selected, Action onClick) {
+        return chip(ctx, text, selected, Theme.TERRACOTTA, onClick);
+    }
+
+    public static TextView chip(Context ctx, String text, boolean selected, int accent, Action onClick) {
         TextView tv = new TextView(ctx);
         tv.setText(text);
         tv.setTextSize(14f);
         tv.setTypeface(Typeface.SANS_SERIF, selected ? Typeface.BOLD : Typeface.NORMAL);
         tv.setPadding(Dp.of(ctx, 16), Dp.of(ctx, 10), Dp.of(ctx, 16), Dp.of(ctx, 10));
         if (selected) {
-            tv.setBackground(roundedBg(Theme.TERRACOTTA, Theme.RADIUS_CHIP, ctx));
+            tv.setBackground(roundedBg(accent, Theme.RADIUS_CHIP, ctx));
             tv.setTextColor(Theme.WHITE);
         } else {
             tv.setBackground(roundedStroke(ctx, Theme.BG_CREAM, Theme.LINE, 1.2f, Theme.RADIUS_CHIP));
@@ -211,6 +221,24 @@ public final class UiKit {
             et.setSingleLine(true);
         }
         return et;
+    }
+
+    public interface Toggle { void onChanged(boolean checked); }
+
+    public static LinearLayout toggleRow(Context ctx, String title, String subtitle, boolean initial, Toggle onChange) {
+        LinearLayout row = row(ctx);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout text = column(ctx);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        text.setLayoutParams(tp);
+        text.addView(bold(ctx, title, 14.5f));
+        if (subtitle != null && !subtitle.isEmpty()) text.addView(muted(ctx, subtitle));
+        row.addView(text);
+        android.widget.Switch sw = new android.widget.Switch(ctx);
+        sw.setChecked(initial);
+        sw.setOnCheckedChangeListener((btn, checked) -> onChange.onChanged(checked));
+        row.addView(sw);
+        return row;
     }
 
     public static View divider(Context ctx) {

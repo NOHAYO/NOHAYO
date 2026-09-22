@@ -1,7 +1,6 @@
 package com.nohayo.companion;
 
 import android.app.Activity;
-import android.content.Context;
 import android.graphics.Typeface;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -13,17 +12,14 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.nohayo.companion.db.Repository;
+import com.nohayo.companion.engine.Stages;
 import com.nohayo.companion.model.Child;
 import com.nohayo.companion.ui.Dp;
+import com.nohayo.companion.ui.Mode;
 import com.nohayo.companion.ui.Screen;
 import com.nohayo.companion.ui.Theme;
 import com.nohayo.companion.ui.UiKit;
-import com.nohayo.companion.ui.screens.FamilyScreen;
-import com.nohayo.companion.ui.screens.InsightsScreen;
-import com.nohayo.companion.ui.screens.JournalScreen;
 import com.nohayo.companion.ui.screens.OnboardingWelcomeScreen;
-import com.nohayo.companion.ui.screens.TimelineScreen;
-import com.nohayo.companion.ui.screens.TodayScreen;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -32,26 +28,24 @@ import java.util.List;
 
 public class MainActivity extends Activity {
 
-    private static final String[] TAB_LABELS = {"Today", "Timeline", "Insights", "Journal", "Family"};
-    private static final String[] TAB_ICONS = {"☀", "⏱", "💡", "📔", "👪"};
-
     private Repository repo;
     private Child child;
+    private Mode currentMode = Mode.PARENT;
 
     private final Deque<Screen> stack = new ArrayDeque<>();
+    private LinearLayout root;
     private FrameLayout contentFrame;
-    private LinearLayout bottomNav;
+    private FrameLayout navHolder;
     private final List<LinearLayout> tabViews = new ArrayList<>();
     private final List<TextView> tabIcons = new ArrayList<>();
     private final List<TextView> tabLabelsViews = new ArrayList<>();
-    private int currentTab = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         repo = ((App) getApplication()).repo();
 
-        LinearLayout root = new LinearLayout(this);
+        root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Theme.BG_CREAM);
 
@@ -60,16 +54,19 @@ public class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         root.addView(contentFrame);
 
-        bottomNav = buildBottomNav();
-        root.addView(bottomNav);
+        navHolder = new FrameLayout(this);
+        navHolder.setLayoutParams(new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(navHolder);
 
         setContentView(root);
 
         child = repo.getFirstChild();
         if (child == null) {
+            rebuildNav(Mode.PARENT);
             push(new OnboardingWelcomeScreen());
         } else {
-            switchTab(0);
+            switchMode(Mode.ownerForAge(Stages.ageInYears(child.birthDateMillis)));
         }
     }
 
@@ -79,12 +76,17 @@ public class MainActivity extends Activity {
 
     public void setChild(Child c) { this.child = c; }
 
+    /** Switches the active profile (DRD §48 multi-generational support) without changing screens itself. */
+    public void switchChild(Child c) { this.child = c; }
+
     public void reloadChild() {
         if (child != null) {
             Child fresh = repo.getFirstChild();
             if (fresh != null) child = fresh;
         }
     }
+
+    public Mode mode() { return currentMode; }
 
     // ---------------- navigation ----------------
 
@@ -112,19 +114,22 @@ public class MainActivity extends Activity {
         }
     }
 
-    public void switchTab(int index) {
+    /** Switches to a different age-stage skin (a different bottom-nav set) and opens its first tab.
+     *  The underlying record (moments/insights/goals/journal) is unchanged; only the lens changes. */
+    public void switchMode(Mode mode) {
+        currentMode = mode;
+        rebuildNav(mode);
         stack.clear();
-        Screen root;
-        switch (index) {
-            case 1: root = new TimelineScreen(); break;
-            case 2: root = new InsightsScreen(); break;
-            case 3: root = new JournalScreen(); break;
-            case 4: root = new FamilyScreen(); break;
-            default: root = new TodayScreen(); break;
-        }
-        currentTab = index;
-        stack.addLast(root);
-        render(root);
+        Screen homeScreen = mode.tabScreens[0].create();
+        stack.addLast(homeScreen);
+        render(homeScreen);
+    }
+
+    public void switchModeTab(int index) {
+        stack.clear();
+        Screen s = currentMode.tabScreens[index].create();
+        stack.addLast(s);
+        render(s);
     }
 
     @Override
@@ -144,23 +149,27 @@ public class MainActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        scroll.setBackgroundColor(Theme.BG_CREAM);
+        scroll.setBackgroundColor(currentMode.bg);
         content.setLayoutParams(new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         scroll.addView(content);
         contentFrame.addView(scroll);
 
         boolean showNav = s.tabIndex() >= 0;
-        bottomNav.setVisibility(showNav ? View.VISIBLE : View.GONE);
+        navHolder.setVisibility(showNav ? View.VISIBLE : View.GONE);
         if (showNav) {
-            currentTab = s.tabIndex();
-            highlightTab(currentTab);
+            highlightTab(s.tabIndex());
         }
     }
 
     // ---------------- bottom nav ----------------
 
-    private LinearLayout buildBottomNav() {
+    private void rebuildNav(Mode mode) {
+        navHolder.removeAllViews();
+        tabViews.clear();
+        tabIcons.clear();
+        tabLabelsViews.clear();
+
         LinearLayout bar = new LinearLayout(this);
         bar.setOrientation(LinearLayout.HORIZONTAL);
         bar.setBackgroundColor(Theme.WHITE);
@@ -178,7 +187,7 @@ public class MainActivity extends Activity {
         wrapper.addView(topLine, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Dp.of(this, 1)));
         wrapper.addView(bar);
 
-        for (int i = 0; i < TAB_LABELS.length; i++) {
+        for (int i = 0; i < mode.tabLabels.length; i++) {
             final int index = i;
             LinearLayout item = new LinearLayout(this);
             item.setOrientation(LinearLayout.VERTICAL);
@@ -187,27 +196,27 @@ public class MainActivity extends Activity {
             item.setPadding(0, Dp.of(this, 6), 0, 0);
 
             TextView icon = new TextView(this);
-            icon.setText(TAB_ICONS[i]);
+            icon.setText(mode.tabIcons[i]);
             icon.setTextSize(18f);
             icon.setGravity(Gravity.CENTER);
             icon.setPadding(Dp.of(this, 14), Dp.of(this, 4), Dp.of(this, 14), Dp.of(this, 4));
 
             TextView label = new TextView(this);
-            label.setText(TAB_LABELS[i]);
+            label.setText(mode.tabLabels[i]);
             label.setTextSize(11.5f);
             label.setGravity(Gravity.CENTER);
             label.setPadding(0, Dp.of(this, 2), 0, 0);
 
             item.addView(icon);
             item.addView(label);
-            item.setOnClickListener(v -> switchTab(index));
+            item.setOnClickListener(v -> switchModeTab(index));
 
             bar.addView(item);
             tabViews.add(item);
             tabIcons.add(icon);
             tabLabelsViews.add(label);
         }
-        return wrapper;
+        navHolder.addView(wrapper);
     }
 
     private void highlightTab(int index) {
@@ -215,11 +224,11 @@ public class MainActivity extends Activity {
             boolean selected = i == index;
             TextView icon = tabIcons.get(i);
             TextView label = tabLabelsViews.get(i);
-            int color = selected ? Theme.TERRACOTTA : Theme.TEXT_FAINT;
+            int color = selected ? currentMode.accent : Theme.TEXT_FAINT;
             label.setTextColor(color);
             label.setTypeface(Typeface.SANS_SERIF, selected ? Typeface.BOLD : Typeface.NORMAL);
             if (selected) {
-                icon.setBackground(UiKit.roundedBg(Theme.PEACH, 14, this));
+                icon.setBackground(UiKit.roundedBg(currentMode.tint, 14, this));
             } else {
                 icon.setBackground(null);
             }

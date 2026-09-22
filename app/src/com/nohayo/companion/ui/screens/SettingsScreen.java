@@ -58,6 +58,9 @@ public class SettingsScreen implements Screen {
         col.addView(dataCard);
         col.addView(UiKit.spacer(ctx, 18));
 
+        col.addView(UiKit.primaryButton(ctx, "🌈  Preview a different life stage", () -> host.push(new ModePickerScreen())));
+        col.addView(UiKit.spacer(ctx, 18));
+
         col.addView(UiKit.bold(ctx, "About", 15f));
         col.addView(UiKit.spacer(ctx, 10));
         LinearLayout about = UiKit.cardOutlined(ctx);

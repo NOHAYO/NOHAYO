@@ -27,9 +27,34 @@ public final class Theme {
     public static final int GREEN_TINT = Color.parseColor("#DFF0DE");
     public static final int GREEN_TINT_DEEP = Color.parseColor("#CBE7C9");
 
-    // Blue (adolescent "own space" accent, used sparingly for info)
+    // Blue ("Own space" adolescent skin)
     public static final int BLUE = Color.parseColor("#3E5C99");
+    public static final int BLUE_DARK = Color.parseColor("#2E4677");
     public static final int BLUE_TINT = Color.parseColor("#E1E7F5");
+    public static final int BLUE_TINT_DEEP = Color.parseColor("#CCD8F0");
+
+    // Teal ("Companion" adult skin)
+    public static final int TEAL = Color.parseColor("#1F6B63");
+    public static final int TEAL_DARK = Color.parseColor("#154D47");
+    public static final int TEAL_TINT = Color.parseColor("#D9EEEB");
+    public static final int TEAL_TINT_DEEP = Color.parseColor("#C3E4DF");
+
+    // Amber/brown ("Legible" later-life skin)
+    public static final int AMBER = Color.parseColor("#7A4E10");
+    public static final int AMBER_DARK = Color.parseColor("#5C3B0C");
+    public static final int AMBER_TINT = Color.parseColor("#F3DFC0");
+    public static final int AMBER_TINT_DEEP = Color.parseColor("#EACD9E");
+
+    // Plum (life-stage transition moments: 18th birthday, career choices)
+    public static final int PLUM = Color.parseColor("#7A4A72");
+    public static final int PLUM_DARK = Color.parseColor("#5C3656");
+    public static final int PLUM_TINT = Color.parseColor("#F0DFED");
+    public static final int PLUM_TINT_DEEP = Color.parseColor("#E4C9DE");
+
+    // Green pastel (Garden, ages 4-7 child skin — lighter/brighter than parent-tool green)
+    public static final int GARDEN_BG = Color.parseColor("#EAF7EA");
+    public static final int GARDEN_SKY = Color.parseColor("#BEE3F8");
+    public static final int GARDEN_HILL = Color.parseColor("#9ED2A0");
 
     // Semantic
     public static final int WARNING_BG = Color.parseColor("#F6D9CB");

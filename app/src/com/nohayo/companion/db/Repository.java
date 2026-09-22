@@ -52,6 +52,23 @@ public class Repository {
         return c;
     }
 
+    public List<Child> getAllChildren() {
+        List<Child> out = new ArrayList<>();
+        SQLiteDatabase db = helper.getReadableDatabase();
+        Cursor cur = db.rawQuery("SELECT id,name,birth_date_millis,about_text,family_values FROM child ORDER BY id ASC", null);
+        while (cur.moveToNext()) {
+            Child c = new Child();
+            c.id = cur.getLong(0);
+            c.name = cur.getString(1);
+            c.birthDateMillis = cur.getLong(2);
+            c.aboutText = cur.getString(3);
+            c.familyValues = cur.getString(4);
+            out.add(c);
+        }
+        cur.close();
+        return out;
+    }
+
     public void clearAllData() {
         SQLiteDatabase db = helper.getWritableDatabase();
         db.execSQL("DELETE FROM child");
@@ -278,6 +295,25 @@ public class Repository {
         }
         cur.close();
         return out;
+    }
+
+    public JournalEntry getJournalEntry(long id) {
+        SQLiteDatabase db = helper.getReadableDatabase();
+        Cursor cur = db.rawQuery(
+                "SELECT id,child_id,author,text,timestamp_millis,private_entry FROM journal_entry WHERE id=?",
+                new String[]{String.valueOf(id)});
+        JournalEntry e = null;
+        if (cur.moveToFirst()) {
+            e = new JournalEntry();
+            e.id = cur.getLong(0);
+            e.childId = cur.getLong(1);
+            e.author = cur.getString(2);
+            e.text = cur.getString(3);
+            e.timestampMillis = cur.getLong(4);
+            e.privateEntry = cur.getInt(5) == 1;
+        }
+        cur.close();
+        return e;
     }
 
     // ---------------- Family ----------------

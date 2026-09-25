@@ -1,8 +1,21 @@
-# The Plan — Lifelong Development Companion (Android)
+# The Plan — Lifelong Development Companion
 
-A native Android build of the "Lifelong Development Companion" product described in
-NOHAYO's `Lifelong_Development_Companion_OnePager`, `lifelong-companion-drd.md`,
-`Step1-Validation-Scope-Brief`, and the `Design.pdf` visual spec.
+The "Lifelong Development Companion" product described in NOHAYO's
+`Lifelong_Development_Companion_OnePager`, `lifelong-companion-drd.md`,
+`Step1-Validation-Scope-Brief`, and the `Design.pdf` visual spec, built two ways:
+
+- **[`app/`](app/) — the Android app** (this document): all five `Design.pdf`
+  age-skins, offline, SQLite-backed.
+- **[`web/`](web/README.md) — the website**: an Express + PostgreSQL backend with
+  real multi-user accounts, and a React web app (installable on iPhone as a PWA)
+  implementing the same parent-tool MVP flow against shared, server-side data.
+  The Android app and the website are two separate clients today (each with its
+  own local data); `web/README.md`'s "Known gaps" section covers what it would
+  take to point the Android app at this same backend.
+
+## Android app
+
+A native Android build of the product above.
 
 This build covers **all five age-adaptive "skins" from `Design.pdf`** ("Five skins,
 one system"), not just the MVP parent-tool slice: the same on-device record (event

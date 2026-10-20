@@ -80,14 +80,20 @@
       }
       const card = document.getElementById('rate');
       const good = n >= 4;
+      const publish = !!fd.get('publish');
+      const text = (fd.get('text') || '').trim();
+      App.busy(this.querySelector('button[type="submit"]'), 900).then(() => {
+      App.S.addReview({ trip: trip.id, n: customer, r: n, t: text || t('no_text_review'), l: App.lang, published: publish });
       card.innerHTML = '<div class="success-icon" aria-hidden="true">' + App.icon('check') + '</div>' +
         '<h2 tabindex="-1" id="rate-done">' + esc(t('thanks_review', vars)) + '</h2>' +
         '<p>' + App.stars(n, { lg: true }) + '</p>' +
         '<p>' + esc(good ? t('after_good') : t('after_bad', vars)) + '</p>' +
         (good ? '<p class="btn-row"><a class="btn btn-outline" href="https://www.google.com/maps" target="_blank" rel="noopener">' + esc(t('share_google')) + '</a>' +
           '<a class="btn btn-wa" href="' + App.waShare(t('share_friends_msg', vars) + ' ' + App.absUrl('tour.html?id=' + trip.id)) + '" target="_blank" rel="noopener">' + App.icon('whatsapp') + '<span>' + esc(t('share_friends')) + '</span></a></p>' : '') +
+        '<p><a href="tour.html?id=' + trip.id + '#reviews">' + esc(t('see_your_review')) + '</a> · <a href="admin.html">' + esc(t('see_in_admin')) + '</a></p>' +
         '<p class="demo-note" role="note">' + esc(t('review_demo_note')) + '</p>';
       document.getElementById('rate-done').focus();
+      });
     });
   }
 

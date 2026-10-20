@@ -9,7 +9,8 @@
      כך הדמו נשאר עדכני בכל יום שבו מציגים אותו.
      אפשר גם לכתוב תאריך קבוע כמחרוזת: '2026-11-12'.
    • טקסט דו-לשוני נכתב כ-{ he: '...', en: '...' }.
-   • תמונות: מזהה תמונה מ-Unsplash (החלק שאחרי photo- בכתובת).
+   • תמונות: שם של איור מהתיקייה assets/img/scenes (בלי ‎.svg), או נתיב לתמונה
+     שלכם, למשל 'assets/img/photos/petra.jpg'. אפשר גם מזהה תמונה מ-Unsplash.
    ===================================================================== */
 
 (function () {
@@ -165,7 +166,7 @@
       meeting: { place: { he: 'תחנת רכבת תל אביב – סבידור מרכז', en: 'Tel Aviv Savidor Central train station' }, time: '07:30', lat: 32.0838, lng: 34.7983 },
       included: { he: ['אוטובוס ממוזג', 'הדרכה מלאה', 'ארוחת צהריים', 'ביטוח'], en: ['Air-conditioned bus', 'Full guiding', 'Lunch', 'Insurance'] },
       notIncluded: { he: ['תרומה אישית לקהילה (לא חובה)'], en: ['Personal donation to the community (optional)'] },
-      images: ['1509316785289-025f5b846b35', '1500382017468-9049fed747ef', '1470509037663-253afd7f0f51'],
+      images: ['south-fields', 'jezreel-valley', 'galilee-hills'],
       theme: 'south',
       dates: [day(4), day(18), day(32), day(46)]
     },
@@ -197,7 +198,7 @@
       meeting: { place: { he: 'מלון דן, רחוב הירקון 99, תל אביב', en: 'Dan Hotel, 99 HaYarkon St., Tel Aviv' }, time: '07:45', lat: 32.0835, lng: 34.7676 },
       included: { he: ['הסעה ממוזגת', 'הדרכה באנגלית', 'ארוחת צהריים', 'מים'], en: ['Air-conditioned transport', 'English guiding', 'Lunch', 'Water'] },
       notIncluded: { he: ['טיפ למדריך ולנהג'], en: ['Tips for guide and driver'] },
-      images: ['1500382017468-9049fed747ef', '1509316785289-025f5b846b35', '1470509037663-253afd7f0f51'],
+      images: ['south-fields', 'galilee-hills', 'jezreel-valley'],
       theme: 'south',
       dates: [day(7), day(21), day(49)]
     },
@@ -229,7 +230,7 @@
       meeting: { place: { he: 'שער יפו, ירושלים', en: 'Jaffa Gate, Jerusalem' }, time: '09:00', lat: 31.7767, lng: 35.2276 },
       included: { he: ['הדרכה', 'נסיעות בין האתרים', 'מים'], en: ['Guiding', 'Transport between sites', 'Water'] },
       notIncluded: { he: ['ארוחת צהריים', 'הגעה לנקודת המפגש'], en: ['Lunch', 'Getting to the meeting point'] },
-      images: ['1552423314-cf29ab68ad73', '1544967082-d9d25d867d66', '1547483238-2cbf881a559f'],
+      images: ['jerusalem-walls', 'hero-panorama', 'jerusalem-alley'],
       theme: 'jerusalem',
       dates: [day(3), day(10), day(24), day(38), day(52)]
     },
@@ -261,7 +262,7 @@
       meeting: { place: { he: 'מגדל דוד, ירושלים', en: 'Tower of David, Jerusalem' }, time: '10:00', lat: 31.7762, lng: 35.2283 },
       included: { he: ['הדרכה', 'ערכת חוקרים לכל ילד', 'כניסה לטיילת החומות'], en: ['Guiding', 'Explorer kit for each child', 'Ramparts Walk entry'] },
       notIncluded: { he: ['ארוחות', 'חניה'], en: ['Meals', 'Parking'] },
-      images: ['1547483238-2cbf881a559f', '1552423314-cf29ab68ad73', '1544967082-d9d25d867d66'],
+      images: ['jerusalem-alley', 'jerusalem-walls', 'jerusalem-night'],
       theme: 'jerusalem',
       dates: [day(6), day(13), day(27), day(41)]
     },
@@ -293,7 +294,7 @@
       meeting: { place: { he: 'כיכר מגן דוד, תל אביב', en: 'Magen David Square, Tel Aviv' }, time: '10:30', lat: 32.0688, lng: 34.7690 },
       included: { he: ['כל הטעימות', 'שתייה קלה', 'הדרכה'], en: ['All tastings', 'Soft drinks', 'Guiding'] },
       notIncluded: { he: ['אלכוהול', 'קניות אישיות בשוק'], en: ['Alcohol', 'Personal market shopping'] },
-      images: ['1488459716781-31db52582fe9', '1555939594-58d7cb561ad1', '1504674900247-0877df9cc836'],
+      images: ['market', 'food-spread'],
       theme: 'food',
       dates: [day(2), day(9), day(16), day(30), day(44)]
     },
@@ -325,7 +326,7 @@
       meeting: { place: { he: 'חניון רכבת גלילות', en: 'Glilot train station parking' }, time: '06:30', lat: 32.1450, lng: 34.8040 },
       included: { he: ['אוטובוס', 'הדרכה', 'ארוחת צהריים כשרה למהדרין'], en: ['Bus', 'Guiding', 'Strictly kosher lunch'] },
       notIncluded: { he: ['תרומות לאתרים'], en: ['Donations at the sites'] },
-      images: ['1441974231531-c6227db76b6e', '1464822759023-fed622ff2c3b', '1426604966848-d7adac402bff'],
+      images: ['safed', 'galilee-hills'],
       theme: 'north',
       dates: [day(8), day(22), day(36), day(50)]
     },
@@ -357,7 +358,7 @@
       meeting: { place: { he: 'תחנת רכבת חוף הכרמל, חיפה', en: 'Haifa Hof HaCarmel train station' }, time: '08:00', lat: 32.7935, lng: 34.9575 },
       included: { he: ['אוטובוס', 'הדרכה', 'ארוחת צהריים'], en: ['Bus', 'Guiding', 'Lunch'] },
       notIncluded: { he: ['רכבל ראש הנקרה'], en: ['Rosh HaNikra cable car'] },
-      images: ['1464822759023-fed622ff2c3b', '1426604966848-d7adac402bff', '1441974231531-c6227db76b6e'],
+      images: ['northern-border', 'galilee-hills'],
       theme: 'north',
       dates: [day(11), day(25), day(39), day(53)]
     },
@@ -389,7 +390,7 @@
       meeting: { place: { he: 'הכניסה לגן הלאומי תל מגידו', en: 'Tel Megiddo National Park entrance' }, time: '08:30', lat: 32.5853, lng: 35.1840 },
       included: { he: ['הדרכה', 'כניסה לגנים הלאומיים'], en: ['Guiding', 'National park entry'] },
       notIncluded: { he: ['הסעה', 'ארוחות'], en: ['Transport', 'Meals'] },
-      images: ['1500382017468-9049fed747ef', '1470509037663-253afd7f0f51', '1426604966848-d7adac402bff'],
+      images: ['jezreel-valley', 'galilee-hills'],
       theme: 'north',
       dates: [day(5), day(19), day(33), day(47)]
     },
@@ -421,7 +422,7 @@
       meeting: { place: { he: 'רחוב המייסדים, זיכרון יעקב', en: 'HaMeyasdim St., Zichron Ya’akov' }, time: '09:30', lat: 32.5715, lng: 34.9530 },
       included: { he: ['הדרכה', 'שתי טעימות יין', 'ארוחה קלה', 'כניסה לבית אהרנסון'], en: ['Guiding', 'Two wine tastings', 'Light meal', 'Aaronsohn House entry'] },
       notIncluded: { he: ['הסעה'], en: ['Transport'] },
-      images: ['1506377247377-2a5b3b417ebb', '1510812431401-41d2bd2722f3', '1500382017468-9049fed747ef'],
+      images: ['vineyard', 'food-spread', 'galilee-hills'],
       theme: 'wine',
       dates: [day(12), day(26), day(40), day(54)]
     },
@@ -450,7 +451,7 @@
       meeting: { place: { he: 'כיכר ספרא, ירושלים', en: 'Safra Square, Jerusalem' }, time: '22:00', lat: 31.7785, lng: 35.2250 },
       included: { he: ['הדרכה', 'שתייה חמה'], en: ['Guiding', 'Hot drinks'] },
       notIncluded: { he: ['הסעה'], en: ['Transport'] },
-      images: ['1544967082-d9d25d867d66', '1552423314-cf29ab68ad73'],
+      images: ['jerusalem-night', 'jerusalem-alley'],
       theme: 'jerusalem',
       // ⚠ דוגמה לטיול שעבר – לא יוצג ברשימות
       dates: [day(-38), day(-31)]
@@ -480,7 +481,7 @@
       meeting: { place: { he: 'מרכז המבקרים, מצפה רמון', en: 'Mitzpe Ramon Visitor Center' }, time: '08:00', lat: 30.6101, lng: 34.8011 },
       included: { he: ['ג׳יפ ודלק', 'הדרכה', 'ארוחת שטח', 'ביטוח'], en: ['Jeep and fuel', 'Guiding', 'Field meal', 'Insurance'] },
       notIncluded: { he: ['הגעה למצפה רמון', 'לינה'], en: ['Getting to Mitzpe Ramon', 'Accommodation'] },
-      images: ['1473580044384-7ba9967e16a0', '1509316785289-025f5b846b35', '1533473359331-0135ef1b58bf'],
+      images: ['ramon-crater', 'desert-dunes'],
       theme: 'south',
       dates: [day(9), day(23), day(37), day(51)]
     },
@@ -509,7 +510,7 @@
       meeting: { place: { he: 'מעבר הגבול יצחק רבין, אילת', en: 'Yitzhak Rabin border crossing, Eilat' }, time: '06:00', lat: 29.5733, lng: 34.9762 },
       included: { he: ['הסעה ממוזגת בירדן', 'מדריך ישראלי ומדריך מקומי', 'ארוחת צהריים'], en: ['Air-conditioned transport in Jordan', 'Israeli and local guide', 'Lunch'] },
       notIncluded: { he: ['אשרה ודמי כניסה לפטרה', 'מסי גבול'], en: ['Visa and Petra entry fee', 'Border taxes'] },
-      images: ['1579606032821-4e6161c81bd3', '1473580044384-7ba9967e16a0', '1509316785289-025f5b846b35'],
+      images: ['petra', 'desert-dunes'],
       theme: 'jordan',
       dates: [day(14), day(28), day(42), day(56)]
     },
@@ -538,7 +539,7 @@
       meeting: { place: { he: 'מעבר הגבול טאבה', en: 'Taba border crossing' }, time: '07:00', lat: 29.4910, lng: 34.9050 },
       included: { he: ['הסעות', 'לינה בסיסית', 'ארוחות', 'מדריך בדואי'], en: ['Transport', 'Basic lodging', 'Meals', 'Bedouin guide'] },
       notIncluded: { he: ['אשרת סיני', 'ביטוח נסיעות'], en: ['Sinai visa', 'Travel insurance'] },
-      images: ['1464822759023-fed622ff2c3b', '1473580044384-7ba9967e16a0'],
+      images: ['sinai-mountains', 'desert-dunes'],
       theme: 'sinai',
       dates: [day(17), day(45)]
     },
@@ -561,7 +562,7 @@
       meeting: { place: { he: 'חניון גבעתי, עיר דוד', en: 'Givati parking lot, City of David' }, time: '09:00', lat: 31.7745, lng: 35.2355 },
       included: { he: ['הדרכה'], en: ['Guiding'] },
       notIncluded: { he: ['כניסה לעיר דוד'], en: ['City of David entry'] },
-      images: ['1552423314-cf29ab68ad73', '1547483238-2cbf881a559f'],
+      images: ['jerusalem-walls', 'jerusalem-alley'],
       theme: 'jerusalem',
       // ⚠ דוגמה לטיול שעבר – לא יוצג ברשימות
       dates: [day(-20), day(-17)]
@@ -676,7 +677,7 @@
       id: 'hanukkah',
       date: day(-2),
       author: 'david',
-      image: '1547483238-2cbf881a559f',
+      image: 'jerusalem-night',
       theme: 'jerusalem',
       trip: 'jerusalem-family',
       category: { he: 'חגים', en: 'Holidays' },
@@ -704,7 +705,7 @@
       id: 'upper-galilee',
       date: day(-6),
       author: 'noa',
-      image: '1441974231531-c6227db76b6e',
+      image: 'galilee-hills',
       theme: 'north',
       trip: 'northern-border',
       category: { he: 'יעדים', en: 'Destinations' },
@@ -730,7 +731,7 @@
       id: 'carmel-bites',
       date: day(-11),
       author: 'yael',
-      image: '1488459716781-31db52582fe9',
+      image: 'food-spread',
       theme: 'food',
       trip: 'carmel-market',
       category: { he: 'קולינריה', en: 'Food' },
@@ -756,7 +757,7 @@
       id: 'visiting-envelope',
       date: day(-16),
       author: 'uri',
-      image: '1500382017468-9049fed747ef',
+      image: 'south-fields',
       theme: 'south',
       trip: 'oct7-he',
       category: { he: 'זיכרון ומורשת', en: 'Remembrance' },

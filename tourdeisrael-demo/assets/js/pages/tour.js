@@ -3,7 +3,7 @@
   const CHILD_DISCOUNT = 0.2;
   const booking = { date: null, adults: 2, children: 0, img: 0 };
 
-  App.page(function (main) {
+  function render(main) {
     const { t, L, esc, D } = App;
     const trip = App.tripById(App.param('id')) || D.TRIPS[0];
     const guide = App.guideById(trip.guide);
@@ -38,10 +38,11 @@
         '<p class="booking-price"><span class="muted">' + esc(t('per_adult')) + '</span> <strong>' + esc(App.fmtPrice(trip.price)) + '</strong></p>' +
         '<div class="field"><label for="b-date">' + esc(t('choose_date')) + '</label><select id="b-date" name="date">' +
         dates.map((x) => {
-          const left = seatsLeft(trip, x);
-          return '<option value="' + x + '"' + (x === booking.date ? ' selected' : '') + '>' + esc(App.fmtDate(x) + ' · ' + m.time + (left <= 8 ? ' · ' + t('seats_left', { n: left }) : '')) + '</option>';
+          const left = App.S.seatsLeft(trip, x);
+          return '<option value="' + x + '"' + (x === booking.date ? ' selected' : '') + (left ? '' : ' disabled') + '>' +
+            esc(App.fmtDate(x) + ' · ' + m.time + (!left ? ' · ' + t('sold_out') : left <= 8 ? ' · ' + t('seats_left', { n: left }) : '')) + '</option>';
         }).join('') +
-        '</select></div>' +
+        '</select><p class="seats-note" id="seats-note" aria-live="polite"></p></div>' +
         stepper('adults', t('adults'), App.fmtPrice(trip.price)) +
         stepper('children', t('children'), t('children_sub', { p: App.fmtPrice(childPrice) })) +
         '<div class="booking-total"><span>' + esc(t('total')) + '</span><strong id="b-total" aria-live="polite">' + esc(App.fmtPrice(total())) + '</strong></div>' +
@@ -59,7 +60,7 @@
       '<nav class="breadcrumbs" aria-label="' + esc(t('breadcrumbs')) + '"><ol><li><a href="index.html">' + esc(t('nav_home')) + '</a></li><li><a href="tours.html">' + esc(t('nav_tours')) + '</a></li><li aria-current="page">' + esc(L(trip.title)) + '</li></ol></nav>' +
       (dates.length ? '' : '<p class="demo-note demo-note-warn" role="note">' + esc(t('past_trip_note')) + '</p>') +
       '<header class="trip-head">' + App.tagList(trip) +
-      '<h1>' + esc(L(trip.title)) + '</h1>' +
+      '<div class="trip-title-row"><h1>' + esc(L(trip.title)) + '</h1>' + App.favBtn(trip, 'fav-btn-text') + '</div>' +
       '<p class="trip-head-meta">' + App.ratingLine(s) + (s.count ? ' <a href="#reviews">' + esc(t('read_reviews')) + '</a>' : '') + '</p></header>' +
 
       /* gallery */
@@ -88,7 +89,9 @@
 
       /* map */
       '<section aria-labelledby="map-title"><h2 id="map-title">' + esc(t('meeting_map')) + '</h2>' +
-      '<div class="map-wrap"><iframe title="' + esc(t('map_iframe_title', { place: L(m.place) })) + '" src="' + mapSrc + '" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe></div>' +
+      '<div class="map-wrap">' + (navigator.onLine
+        ? '<iframe title="' + esc(t('map_iframe_title', { place: L(m.place) })) + '" src="' + mapSrc + '" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>'
+        : '<div class="map-offline">' + App.icon('pin') + '<strong>' + esc(L(m.place)) + '</strong><span>' + esc(t('map_offline')) + '</span></div>') + '</div>' +
       '<div class="btn-row"><a class="btn btn-waze" href="' + wazeUrl + '" target="_blank" rel="noopener">' + App.icon('waze') + '<span>' + esc(t('nav_waze')) + '</span></a>' +
       '<a class="btn btn-outline" href="' + gmapsUrl + '" target="_blank" rel="noopener">' + App.icon('pin') + '<span>' + esc(t('open_gmaps')) + '</span></a></div></section>' +
 
@@ -129,30 +132,53 @@
 
     /* booking events */
     const form = document.getElementById('booking-form');
+    // a date can't be fully booked when we arrive: pick the first one with room
+    if (!App.S.seatsLeft(trip, booking.date)) booking.date = dates.find((x) => App.S.seatsLeft(trip, x)) || booking.date;
+    form.date.value = booking.date;
+    const left = () => App.S.seatsLeft(trip, booking.date);
     function refresh() {
+      const max = left();
+      if (booking.adults + booking.children > max) { booking.children = Math.max(0, max - booking.adults); booking.adults = Math.max(1, Math.min(booking.adults, max)); }
       document.getElementById('out-adults').textContent = booking.adults;
       document.getElementById('out-children').textContent = booking.children;
       document.getElementById('b-total').textContent = App.fmtPrice(total());
+      document.getElementById('seats-note').textContent = max <= 8 ? t('seats_left_note', { n: max }) : '';
+      form.querySelectorAll('[data-d="1"]').forEach((b) => { b.disabled = booking.adults + booking.children >= max; });
     }
     form.addEventListener('click', function (e) {
       const b = e.target.closest('[data-step]');
       if (!b) return;
       const k = b.dataset.step;
       const min = k === 'adults' ? 1 : 0;
-      booking[k] = Math.max(min, Math.min(20, booking[k] + Number(b.dataset.d)));
+      const next = Math.max(min, booking[k] + Number(b.dataset.d));
+      if (Number(b.dataset.d) > 0 && booking.adults + booking.children >= left()) return;
+      booking[k] = next;
       refresh();
     });
-    form.date.addEventListener('change', function () { booking.date = this.value; });
+    form.date.addEventListener('change', function () { booking.date = this.value; refresh(); });
     form.addEventListener('submit', function (e) { e.preventDefault(); openDialog(); });
+    refresh();
 
     const dlg = document.getElementById('book-dialog');
+    const inner = document.getElementById('dialog-inner');
+    const contact = { name: '', phone: '', email: '' };
+    const row = (k, v) => '<div><dt>' + esc(k) + '</dt><dd>' + v + '</dd></div>';
+    const head = (title, step) =>
+      '<div class="dialog-head"><h2 id="dlg-title" tabindex="-1">' + esc(title) + '</h2>' +
+      '<button type="button" class="icon-btn" data-close aria-label="' + esc(t('close')) + '">' + App.icon('close') + '</button></div>' +
+      (step ? '<ol class="dlg-steps" aria-label="' + esc(t('steps_aria')) + '">' + [t('step_details'), t('step_payment'), t('step_done')].map((x, i) =>
+        '<li' + (i + 1 === step ? ' aria-current="step"' : '') + (i + 1 < step ? ' class="done"' : '') + '><span>' + (i + 1) + '</span>' + esc(x) + '</li>').join('') + '</ol>' : '');
+    inner.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) dlg.close(); });
+
     function openDialog() {
-      const inner = document.getElementById('dialog-inner');
-      const row = (k, v) => '<div><dt>' + esc(k) + '</dt><dd>' + v + '</dd></div>';
-      inner.innerHTML =
-        '<div class="dialog-head"><h2 id="dlg-title">' + esc(t('summary_title')) + '</h2>' +
-        '<button type="button" class="icon-btn" id="dlg-close" aria-label="' + esc(t('close')) + '">' + App.icon('close') + '</button></div>' +
-        '<p class="demo-note" role="note">' + esc(t('summary_demo')) + '</p>' +
+      stepDetails();
+      dlg.showModal();
+      document.getElementById('dlg-title').focus();
+    }
+
+    /* step 1: summary + contact details */
+    function stepDetails() {
+      inner.innerHTML = head(t('summary_title'), 1) +
         '<dl class="summary">' +
         row(t('trip'), esc(L(trip.title))) +
         row(t('date'), esc(App.fmtDate(booking.date, 'long')) + ', ' + esc(m.time)) +
@@ -163,38 +189,75 @@
         '</dl>' +
         '<form id="dlg-form" novalidate>' +
         '<div class="form-grid">' +
-        '<div class="field"><label for="c-name">' + esc(t('full_name')) + ' <span aria-hidden="true">*</span></label><input id="c-name" name="name" required autocomplete="name"></div>' +
-        '<div class="field"><label for="c-phone">' + esc(t('phone')) + ' <span aria-hidden="true">*</span></label><input id="c-phone" name="phone" type="tel" required autocomplete="tel" inputmode="tel" pattern="[0-9+\\-\\s]{9,15}" dir="ltr"></div>' +
-        '<div class="field span-2"><label for="c-email">' + esc(t('email')) + '</label><input id="c-email" name="email" type="email" autocomplete="email" dir="ltr"></div>' +
+        '<div class="field"><label for="c-name">' + esc(t('full_name')) + ' <span aria-hidden="true">*</span></label><input id="c-name" name="name" required autocomplete="name" value="' + esc(contact.name) + '"></div>' +
+        '<div class="field"><label for="c-phone">' + esc(t('phone')) + ' <span aria-hidden="true">*</span></label><input id="c-phone" name="phone" type="tel" required autocomplete="tel" inputmode="tel" pattern="[0-9+\\-\\s]{9,15}" dir="ltr" value="' + esc(contact.phone) + '"></div>' +
+        '<div class="field span-2"><label for="c-email">' + esc(t('email')) + '</label><input id="c-email" name="email" type="email" autocomplete="email" dir="ltr" value="' + esc(contact.email) + '"></div>' +
         '</div>' +
-        '<button class="btn btn-primary btn-block" type="submit">' + esc(t('confirm_demo')) + '</button></form>';
-      dlg.showModal();
-      document.getElementById('dlg-close').addEventListener('click', () => dlg.close());
+        '<button class="btn btn-primary btn-block" type="submit">' + esc(t('to_payment')) + '</button></form>';
       document.getElementById('dlg-form').addEventListener('submit', function (e) {
         e.preventDefault();
         if (!App.validate(this)) return;
-        const ref = 'DEMO-' + Math.floor(1000 + Math.random() * 9000);
-        const name = new FormData(this).get('name');
-        inner.innerHTML =
-          '<div class="dialog-head"><h2 id="dlg-title" tabindex="-1">' + esc(t('booked_title')) + '</h2>' +
-          '<button type="button" class="icon-btn" id="dlg-close" aria-label="' + esc(t('close')) + '">' + App.icon('close') + '</button></div>' +
-          '<div class="success-icon" aria-hidden="true">' + App.icon('check') + '</div>' +
-          '<p>' + esc(t('booked_text', { name: name, ref: ref })) + '</p>' +
-          '<ul class="check-icons">' + li([t('booked_step1'), t('booked_step2'), t('booked_step3')], 'check') + '</ul>' +
-          '<p class="demo-note" role="note">' + esc(t('booked_demo')) + '</p>' +
-          '<button type="button" class="btn btn-primary btn-block" id="dlg-ok">' + esc(t('close')) + '</button>';
-        document.getElementById('dlg-title').focus();
-        document.getElementById('dlg-close').addEventListener('click', () => dlg.close());
-        document.getElementById('dlg-ok').addEventListener('click', () => dlg.close());
+        const fd = new FormData(this);
+        contact.name = fd.get('name').trim(); contact.phone = fd.get('phone').trim(); contact.email = fd.get('email').trim();
+        stepPayment();
       });
+    }
+
+    /* step 2: simulated payment – a fixed test card, nothing real can be typed */
+    function stepPayment() {
+      inner.innerHTML = head(t('payment_title'), 2) +
+        '<p class="demo-note" role="note">' + App.icon('lock') + '<span>' + esc(t('payment_demo')) + '</span></p>' +
+        '<form id="pay-form">' +
+        '<fieldset class="field"><legend>' + esc(t('pay_method')) + '</legend><div class="radio-cards pay-methods">' +
+        '<label class="radio-card"><input type="radio" name="pay" value="card" checked>' + App.icon('card') + '<span>' + esc(t('pay_card')) + '</span></label>' +
+        '<label class="radio-card"><input type="radio" name="pay" value="bit"><span class="bit-logo" aria-hidden="true">bit</span><span>' + esc(t('pay_bit')) + '</span></label>' +
+        '</div></fieldset>' +
+        '<div id="pay-card"><div class="test-card" aria-hidden="true"><span class="chip-gold"></span><span dir="ltr">4580 0000 0000 0000</span><span class="test-card-foot" dir="ltr"><span>' + esc(contact.name.toUpperCase()) + '</span><span>12/29</span></span></div>' +
+        '<div class="form-grid">' +
+        '<div class="field span-2"><label for="p-num">' + esc(t('card_number')) + '</label><input id="p-num" value="4580 0000 0000 0000" readonly dir="ltr" aria-describedby="p-note"></div>' +
+        '<div class="field"><label for="p-exp">' + esc(t('card_exp')) + '</label><input id="p-exp" value="12/29" readonly dir="ltr"></div>' +
+        '<div class="field"><label for="p-cvv">CVV</label><input id="p-cvv" value="•••" readonly dir="ltr"></div>' +
+        '</div><p class="small muted" id="p-note">' + esc(t('card_readonly')) + '</p></div>' +
+        '<div id="pay-bit" hidden><p>' + esc(t('bit_text', { phone: contact.phone })) + '</p></div>' +
+        '<div class="booking-total"><span>' + esc(t('total')) + '</span><strong>' + esc(App.fmtPrice(total())) + '</strong></div>' +
+        '<div class="btn-row dlg-actions"><button type="button" class="btn btn-outline" id="pay-back">' + esc(t('back')) + '</button>' +
+        '<button class="btn btn-primary" type="submit" id="pay-btn">' + App.icon('lock') + '<span>' + esc(t('pay_now', { sum: App.fmtPrice(total()) })) + '</span></button></div>' +
+        '</form>';
+      document.getElementById('dlg-title').focus();
+      const pf = document.getElementById('pay-form');
+      pf.addEventListener('change', () => {
+        const bit = pf.querySelector('input[name="pay"]:checked').value === 'bit';
+        document.getElementById('pay-card').hidden = bit;
+        document.getElementById('pay-bit').hidden = !bit;
+      });
+      document.getElementById('pay-back').addEventListener('click', stepDetails);
+      pf.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const pay = pf.querySelector('input[name="pay"]:checked').value;
+        App.busy(document.getElementById('pay-btn'), 1400).then(() => {
+          const rec = App.S.addBooking({ trip: trip.id, date: booking.date, adults: booking.adults, children: booking.children, total: total(), name: contact.name, phone: contact.phone, email: contact.email, pay });
+          App.refreshCounts();
+          stepDone(rec);
+        });
+      });
+    }
+
+    /* step 3: confirmation */
+    function stepDone(rec) {
+      inner.innerHTML = head(t('booked_title'), 3) +
+        '<div class="success-icon" aria-hidden="true">' + App.icon('check') + '</div>' +
+        '<p>' + esc(t('booked_text', { name: rec.name, ref: rec.id })) + '</p>' +
+        '<ul class="check-icons">' + li([t('booked_step1'), t('booked_step2'), t('booked_step3')], 'check') + '</ul>' +
+        '<div class="btn-row"><a class="btn btn-primary" href="my-bookings.html#' + rec.id + '">' + App.icon('ticket') + '<span>' + esc(t('to_my_bookings')) + '</span></a>' +
+        '<button type="button" class="btn btn-outline" id="ics-btn">' + App.icon('calendar') + '<span>' + esc(t('add_calendar')) + '</span></button></div>' +
+        '<p class="demo-note" role="note">' + esc(t('booked_demo')) + '</p>';
+      document.getElementById('dlg-title').focus();
+      document.getElementById('ics-btn').addEventListener('click', () => App.downloadIcs(trip, rec));
+      dlg.addEventListener('close', () => render(main), { once: true });
     }
     // close on backdrop click
     dlg.addEventListener('click', (e) => { if (e.target === dlg) dlg.close(); });
-  });
-
-  /** demo-only: deterministic "seats left" per date */
-  function seatsLeft(trip, date) {
-    const n = date.split('-').reduce((a, b) => a + Number(b), 0) + trip.id.length;
-    return 3 + (n % 15);
   }
+
+  App.page(render);
 })();

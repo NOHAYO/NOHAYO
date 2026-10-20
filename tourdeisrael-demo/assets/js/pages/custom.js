@@ -49,7 +49,12 @@ App.page(function (main) {
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     if (!App.validate(form)) return;
-    const fd = new FormData(form);
+    App.busy(form.querySelector('button[type="submit"]'), 1000).then(() => done(new FormData(form)));
+  });
+  function done(fd) {
+    App.S.addLead({ group: fd.get('group'), people: Number(fd.get('people')), from: fd.get('from'), to: fd.get('to'), flex: !!fd.get('flex'),
+      budget: fd.get('budget'), interests: fd.getAll('interests'), name: fd.get('name'), phone: fd.get('phone'), email: fd.get('email'), notes: fd.get('notes'),
+      guide: preGuide ? preGuide.id : '' });
     const ints = fd.getAll('interests').map((x) => t('int_' + x));
     const when = fd.get('flex') ? t('flexible_dates') :
       [fd.get('from'), fd.get('to')].filter(Boolean).map((x) => App.fmtDate(x, 'short')).join(' – ') || t('not_set');
@@ -72,5 +77,5 @@ App.page(function (main) {
       '<p><a class="btn btn-outline" href="custom.html">' + esc(t('new_request')) + '</a> <a class="btn btn-primary" href="tours.html">' + esc(t('browse_tours')) + '</a></p>';
     form.replaceWith(box);
     document.getElementById('done-title').focus();
-  });
+  }
 });

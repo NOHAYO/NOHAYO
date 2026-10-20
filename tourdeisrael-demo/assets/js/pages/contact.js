@@ -39,10 +39,14 @@ App.page(function (main) {
   form.addEventListener('submit', function (e) {
     e.preventDefault();
     if (!App.validate(form)) return;
-    const name = new FormData(form).get('name');
+    App.busy(form.querySelector('button[type="submit"]'), 900).then(() => done(new FormData(form)));
+  });
+  function done(fd) {
+    App.S.addMessage({ name: fd.get('name'), phone: fd.get('phone'), email: fd.get('email'), subject: fd.get('subject'), msg: fd.get('msg') });
+    const name = fd.get('name');
     form.innerHTML = '<div class="success-card" role="status"><div class="success-icon" aria-hidden="true">' + App.icon('check') + '</div>' +
       '<h2 tabindex="-1" id="ct-done">' + esc(t('contact_done', { name: name })) + '</h2><p>' + esc(t('contact_done_sub')) + '</p>' +
       '<p class="demo-note" role="note">' + esc(t('form_demo_note')) + '</p></div>';
     document.getElementById('ct-done').focus();
-  });
+  }
 });

@@ -21,7 +21,7 @@ App.page(function (main) {
     .forEach((r) => { if (featured.length < 3 && !seen.has(r.trip)) { featured.push(r); seen.add(r.trip); } });
 
   const topGuides = D.GUIDES.slice().sort((a, b) => App.guideStats(b.id).avg - App.guideStats(a.id).avg).slice(0, 4);
-  const regionImg = { north: '1441974231531-c6227db76b6e', center: '1488459716781-31db52582fe9', jerusalem: '1552423314-cf29ab68ad73', south: '1509316785289-025f5b846b35', jordan: '1579606032821-4e6161c81bd3', sinai: '1464822759023-fed622ff2c3b' };
+  const regionImg = { north: 'galilee-hills', center: 'market', jerusalem: 'jerusalem-walls', south: 'ramon-crater', jordan: 'petra', sinai: 'sinai-mountains' };
   const regionTheme = { north: 'north', center: 'center', jerusalem: 'jerusalem', south: 'south', jordan: 'jordan', sinai: 'sinai' };
   const countBy = (k, v) => upcoming.filter((x) => (Array.isArray(x[k]) ? x[k].includes(v) : x[k] === v)).length;
 
@@ -30,7 +30,7 @@ App.page(function (main) {
   main.innerHTML =
     /* HERO */
     '<section class="hero" aria-labelledby="hero-title">' +
-    '<div class="hero-bg">' + App.img('1552423314-cf29ab68ad73', { w: 1600, alt: '', theme: 'jerusalem', eager: true }) + '</div>' +
+    '<div class="hero-bg">' + App.img('hero-panorama', { w: 1600, alt: '', theme: 'jerusalem', eager: true }) + '</div>' +
     '<div class="container hero-inner">' +
     '<h1 id="hero-title">' + esc(t('hero_title')) + '</h1>' +
     '<p class="hero-sub">' + esc(t('hero_sub')) + '</p>' +

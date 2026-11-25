@@ -14,6 +14,7 @@ import InsightDetail from "./pages/InsightDetail.jsx";
 import Goals from "./pages/Goals.jsx";
 import Journal from "./pages/Journal.jsx";
 import Family from "./pages/Family.jsx";
+import Boiler from "./pages/Boiler.jsx";
 
 const TAB_ROUTES = ["/today", "/timeline", "/insights", "/journal", "/family"];
 
@@ -59,6 +60,7 @@ export default function App() {
         <Route path="/goals" element={<Goals />} />
         <Route path="/journal" element={<Journal />} />
         <Route path="/family" element={<Family />} />
+        <Route path="/boiler" element={<Boiler />} />
         <Route path="*" element={<Navigate to="/today" replace />} />
       </Routes>
       {showNav && <BottomNav />}

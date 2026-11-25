@@ -50,4 +50,21 @@ export const api = {
 
   listFamily: (childId) => request(`/children/${childId}/family`),
   inviteFamilyMember: (childId, payload) => request(`/children/${childId}/family`, { method: "POST", body: payload }),
+
+  // Dolphin boiler controls (backend proxies to the Dolphin cloud; the API key never reaches the browser)
+  getBoiler: () => request("/boiler"),
+  linkBoiler: (email, password) => request("/boiler/link", { method: "POST", body: { email, password } }),
+  unlinkBoiler: () => request("/boiler/link", { method: "DELETE" }),
+  boilerHeat: (device, temperature) => request(`${boilerDevice(device)}/heat`, { method: "POST", body: { temperature } }),
+  boilerOff: (device) => request(`${boilerDevice(device)}/off`, { method: "POST" }),
+  boilerShowers: (device, count) => request(`${boilerDevice(device)}/showers`, { method: "POST", body: { count } }),
+  boilerFixed: (device, temperature) =>
+    temperature === null
+      ? request(`${boilerDevice(device)}/fixed`, { method: "DELETE" })
+      : request(`${boilerDevice(device)}/fixed`, { method: "POST", body: { temperature } }),
+  boilerShabbat: (device, on) => request(`${boilerDevice(device)}/shabbat`, { method: "POST", body: { on } }),
 };
+
+function boilerDevice(device) {
+  return `/boiler/devices/${encodeURIComponent(device)}`;
+}

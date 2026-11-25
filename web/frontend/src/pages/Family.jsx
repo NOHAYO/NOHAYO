@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { useApp } from "../AppContext.jsx";
 import { api } from "../api/client.js";
 
@@ -75,6 +76,10 @@ export default function Family() {
       <p className="muted" style={{ marginTop: 18, textAlign: "center" }}>
         Each child has one profile. Siblings are never compared anywhere in the app.
       </p>
+
+      <Link to="/boiler" className="btn btn-outline" style={{ marginTop: 18, textDecoration: "none" }}>
+        🔥 Home boiler
+      </Link>
 
       <button className="btn btn-link" style={{ marginTop: 8 }} onClick={logout}>
         Sign out

@@ -8,6 +8,13 @@
       "when": 1790325329417,
       "tag": "0000_warm_kitty_pryde",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1795629872607,
+      "tag": "0001_boiler_accounts",
+      "breakpoints": true
     }
   ]
 }

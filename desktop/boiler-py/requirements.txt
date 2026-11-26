@@ -1,0 +1,4 @@
+# Optional but recommended: keeps the Dolphin sign-in key in Windows Credential
+# Manager / macOS Keychain so you don't sign in every time. The app works
+# without it (you just sign in each time it opens).
+keyring>=24

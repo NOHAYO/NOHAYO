@@ -39,6 +39,8 @@ describe("Boiler controls API", () => {
   it("rejects a wrong Dolphin password", async () => {
     const res = await request(app).post("/api/boiler/link").set(auth).send({ email: MOCK_EMAIL, password: "wrong" });
     expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/rejected that email or password/);
+    expect((await request(app).get("/api/boiler").set(auth)).body.linked).toBe(false);
   });
 
   it("links the account and stores the key encrypted", async () => {

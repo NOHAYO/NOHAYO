@@ -86,6 +86,7 @@ async function main() {
 
   switch (cmd) {
     case "login":
+      await client.getDevices(email, key); // proves the key works before printing it
       console.log(key);
       console.error("Export this as DOLPHIN_API_KEY to skip the password next time.");
       return;

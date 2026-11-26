@@ -45,7 +45,7 @@ export function createMockDolphin() {
   const ownsDevice = (f) => authed(f) && f.deviceName === MOCK_DEVICE;
 
   const handlers = {
-    getAPIkey: (f) => (f.email === MOCK_EMAIL && f.password === MOCK_PASSWORD ? MOCK_API_KEY : ""),
+    getAPIkey: (f) => (f.email === MOCK_EMAIL && f.password === MOCK_PASSWORD ? MOCK_API_KEY : "failed"), // as the real service replies
     getDevices: (f) => (authed(f) ? [{ deviceName: MOCK_DEVICE }] : { error: "unauthorized" }),
     getMainScreenData: (f) => {
       if (!ownsDevice(f)) return { error: "unauthorized" };

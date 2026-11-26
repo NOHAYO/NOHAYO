@@ -11,6 +11,9 @@
  * local mock (scripts/dolphin-mock.js) instead of the real service.
  */
 
+/** Bare-word replies that mean the login failed, not an API key. */
+const LOGIN_FAILURE_WORDS = /^(fail(ed|ure)?|error|false|invalid|unauthori[sz]ed|wrong|null|undefined|0|-1)$/i;
+
 export const DEFAULT_BASE_URL = "https://api.dolphinboiler.com/HA/V1";
 const TIMEOUT_MS = 10_000;
 
@@ -113,8 +116,9 @@ export function createDolphinClient(opts = {}) {
     /** Exchanges the app login for an API key (plain-text reply). */
     async getApiKey(email, password) {
       const text = (await call("getAPIkey", { email, password })).trim();
-      // A failed login comes back as an empty body or a JSON/HTML error, never a bare key.
-      if (!text || /^[{[<]/.test(text) || /\s/.test(text)) {
+      // A failed login comes back as a bare word such as "failed" (seen from the real
+      // service on a wrong email or password), an empty body, or a JSON/HTML error.
+      if (!text || /^[{[<]/.test(text) || /\s/.test(text) || LOGIN_FAILURE_WORDS.test(text)) {
         throw new DolphinError("Dolphin rejected that email or password.", { body: text });
       }
       return text;

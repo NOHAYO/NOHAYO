@@ -8,6 +8,11 @@
  *   DOLPHIN_BASE_URL=http://localhost:4100/HA/V1 npm start
  *
  * Login: demo@example.com / demo-password
+ *
+ * Tests can make it misbehave through the returned `faults` object:
+ *   faults.offline = true     the boiler is offline: device calls answer { error: "Device is offline" }
+ *   mock.revokeKey()          the issued API key stops working (as after a password change)
+ *   faults.outage = "http500" | "drop" | "garbage"   every request fails that way
  */
 import http from "node:http";
 import { pathToFileURL } from "node:url";
@@ -28,6 +33,8 @@ export function createMockDolphin() {
     showerTemperature: [{ temp: 38 }, { temp: 45 }, { temp: 52 }, { temp: 58 }],
   };
   const calls = [];
+  const faults = { offline: false, outage: null };
+  let apiKey = MOCK_API_KEY;
 
   const tick = () => {
     // Each status read nudges the water 2 °C toward the target while heating.
@@ -41,11 +48,11 @@ export function createMockDolphin() {
     device.Energy = device.Power === "ON" ? 13.2 : 0;
   };
 
-  const authed = (f) => f.email === MOCK_EMAIL && f.API_Key === MOCK_API_KEY;
+  const authed = (f) => f.email === MOCK_EMAIL && f.API_Key === apiKey;
   const ownsDevice = (f) => authed(f) && f.deviceName === MOCK_DEVICE;
 
   const handlers = {
-    getAPIkey: (f) => (f.email === MOCK_EMAIL && f.password === MOCK_PASSWORD ? MOCK_API_KEY : "failed"), // as the real service replies
+    getAPIkey: (f) => (f.email === MOCK_EMAIL && f.password === MOCK_PASSWORD ? apiKey : "failed"), // as the real service replies
     getDevices: (f) => (authed(f) ? [{ deviceName: MOCK_DEVICE }] : { error: "unauthorized" }),
     getMainScreenData: (f) => {
       if (!ownsDevice(f)) return { error: "unauthorized" };
@@ -92,13 +99,26 @@ export function createMockDolphin() {
     req.on("end", () => {
       const fields = Object.fromEntries(new URLSearchParams(raw));
       calls.push({ endpoint: match[1], fields });
-      const out = handler(fields);
+      if (faults.outage === "drop") return req.socket.destroy();
+      if (faults.outage === "http500") return res.writeHead(500).end("Internal Server Error");
+      if (faults.outage === "garbage") return res.writeHead(200, { "Content-Type": "text/html" }).end("<html>maintenance</html>");
+      const isDeviceCall = "deviceName" in fields;
+      const out = faults.offline && isDeviceCall && ownsDevice(fields) ? { error: "Device is offline" } : handler(fields);
       res.writeHead(200, { "Content-Type": typeof out === "string" ? "text/plain" : "application/json" });
       res.end(typeof out === "string" ? out : JSON.stringify(out));
     });
   });
 
-  return { server, device, calls };
+  const revokeKey = () => {
+    apiKey = `${MOCK_API_KEY}-${calls.length}`;
+  };
+  const reset = () => {
+    faults.offline = false;
+    faults.outage = null;
+    apiKey = MOCK_API_KEY;
+  };
+
+  return { server, device, calls, faults, revokeKey, reset };
 }
 
 if (import.meta.url === pathToFileURL(process.argv[1]).href) {

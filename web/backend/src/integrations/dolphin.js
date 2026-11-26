@@ -17,12 +17,22 @@ const LOGIN_FAILURE_WORDS = /^(fail(ed|ure)?|error|false|invalid|unauthori[sz]ed
 export const DEFAULT_BASE_URL = "https://api.dolphinboiler.com/HA/V1";
 const TIMEOUT_MS = 10_000;
 
+/**
+ * Why a Dolphin call failed, so routes and the UI can say something useful:
+ *   bad_login     getAPIkey refused the email/password
+ *   unauthorized  a stored API key was rejected (the user must sign in again)
+ *   unreachable   network error or timeout talking to Dolphin
+ *   rejected      Dolphin answered `{ error: ... }` to a device call (offline boiler, unknown device, ...)
+ *   bad_reply     HTTP error or a reply we can't parse
+ */
 export class DolphinError extends Error {
-  constructor(message, { status, body } = {}) {
+  constructor(message, { code = "bad_reply", status } = {}) {
     super(message);
     this.name = "DolphinError";
+    this.code = code;
     this.status = status;
-    this.body = body;
+    // Deliberately no copy of the request or reply body: requests carry the
+    // password or API key, and an error object is the kind of thing that gets logged.
   }
 }
 
@@ -30,7 +40,7 @@ function baseUrl(override) {
   return (override || process.env.DOLPHIN_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, "");
 }
 
-async function post(endpoint, fields, { base, fetchImpl = fetch } = {}) {
+async function post(endpoint, fields, { base, fetchImpl = fetch, timeoutMs } = {}) {
   const body = new URLSearchParams();
   for (const [k, v] of Object.entries(fields)) if (v !== undefined) body.set(k, String(v));
 
@@ -41,15 +51,31 @@ async function post(endpoint, fields, { base, fetchImpl = fetch } = {}) {
       method: "POST",
       headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body,
-      signal: AbortSignal.timeout(TIMEOUT_MS),
+      signal: AbortSignal.timeout(timeoutMs ?? (Number(process.env.DOLPHIN_TIMEOUT_MS) || TIMEOUT_MS)),
     });
     text = await res.text();
   } catch (err) {
-    throw new DolphinError(`Could not reach Dolphin (${err.name === "TimeoutError" ? "timeout" : err.message}).`);
+    const why = err.name === "TimeoutError" ? "timeout" : "connection failed";
+    throw new DolphinError(`Could not reach Dolphin (${why}).`, { code: "unreachable" });
   }
 
-  if (!res.ok) throw new DolphinError(`Dolphin returned HTTP ${res.status}.`, { status: res.status, body: text });
+  if (res.status === 401 || res.status === 403) {
+    throw new DolphinError(`Dolphin refused ${endpoint}: HTTP ${res.status}.`, { code: "unauthorized", status: res.status });
+  }
+  if (!res.ok) throw new DolphinError(`Dolphin returned HTTP ${res.status}.`, { status: res.status });
   return text;
+}
+
+const AUTH_WORDS = /unauthori[sz]ed|api[ _-]?key|not logged|login|token|credential/i;
+
+/** Dolphin reports failures as a 200 with `{ "error": "..." }`. */
+function replyError(endpoint, data) {
+  if (!data || typeof data !== "object" || Array.isArray(data) || !data.error) return null;
+  const detail = String(data.error).slice(0, 120);
+  // "unauthorized" may also mean "not your boiler": callers that know the device
+  // re-check the key with getDevices before asking the user to sign in again.
+  const code = AUTH_WORDS.test(detail) ? "unauthorized" : "rejected";
+  return new DolphinError(`Dolphin refused ${endpoint}: ${detail}.`, { code });
 }
 
 function parseJson(endpoint, text) {
@@ -57,22 +83,14 @@ function parseJson(endpoint, text) {
   try {
     data = JSON.parse(text);
   } catch {
-    throw new DolphinError(`Unexpected reply from Dolphin ${endpoint}.`, { body: text });
+    throw new DolphinError(`Unexpected reply from Dolphin ${endpoint}.`);
   }
-  return rejectErrorReply(endpoint, data, text);
-}
-
-/** Dolphin reports failures (bad key, unknown device) as HTTP 200 with an
- *  `error` field, so a 2xx alone does not mean the command was accepted. */
-function rejectErrorReply(endpoint, data, text) {
-  if (data && typeof data === "object" && !Array.isArray(data) && data.error) {
-    throw new DolphinError(`Dolphin refused ${endpoint}: ${data.error}.`, { body: text });
-  }
+  const err = replyError(endpoint, data);
+  if (err) throw err;
   return data;
 }
 
-/** Control commands: the body is usually small JSON, but may be empty or plain
- *  text, so only a JSON error reply counts as a failure. */
+/** Commands may reply with plain text ("ok") or JSON; only a JSON error counts as failure. */
 function checkCommand(endpoint, text) {
   let data;
   try {
@@ -80,7 +98,9 @@ function checkCommand(endpoint, text) {
   } catch {
     return text;
   }
-  return rejectErrorReply(endpoint, data, text);
+  const err = replyError(endpoint, data);
+  if (err) throw err;
+  return data;
 }
 
 /** Normalises getMainScreenData into stable camelCase fields. */
@@ -107,6 +127,8 @@ export function normaliseStatus(raw = {}) {
   };
 }
 
+const badLogin = () => new DolphinError("Dolphin rejected that email or password.", { code: "bad_login" });
+
 export function createDolphinClient(opts = {}) {
   const call = (endpoint, fields) => post(endpoint, fields, opts);
   const json = async (endpoint, fields) => parseJson(endpoint, await call(endpoint, fields));
@@ -115,25 +137,29 @@ export function createDolphinClient(opts = {}) {
   return {
     /** Exchanges the app login for an API key (plain-text reply). */
     async getApiKey(email, password) {
-      const text = (await call("getAPIkey", { email, password })).trim();
+      let text;
+      try {
+        text = (await call("getAPIkey", { email, password })).trim();
+      } catch (err) {
+        if (err.code === "unauthorized") throw badLogin();
+        throw err;
+      }
       // A failed login comes back as a bare word such as "failed" (seen from the real
       // service on a wrong email or password), an empty body, or a JSON/HTML error.
-      if (!text || /^[{[<]/.test(text) || /\s/.test(text) || LOGIN_FAILURE_WORDS.test(text)) {
-        throw new DolphinError("Dolphin rejected that email or password.", { body: text });
-      }
+      if (!text || /^[{[<]/.test(text) || /\s/.test(text) || LOGIN_FAILURE_WORDS.test(text)) throw badLogin();
       return text;
     },
 
     async getDevices(email, apiKey) {
       const data = await json("getDevices", { email, API_Key: apiKey });
-      if (!Array.isArray(data)) throw new DolphinError("Dolphin did not return a device list.", { body: data });
+      if (!Array.isArray(data)) throw new DolphinError("Dolphin did not return a device list.");
       return data.filter((d) => d && d.deviceName).map((d) => ({ ...d, deviceName: String(d.deviceName) }));
     },
 
     async getStatus(email, apiKey, deviceName) {
       const data = await json("getMainScreenData", { email, API_Key: apiKey, deviceName });
       if (!data || typeof data !== "object" || Array.isArray(data)) {
-        throw new DolphinError("Dolphin did not return boiler status.", { body: data });
+        throw new DolphinError("Dolphin did not return boiler status.");
       }
       return normaliseStatus(data);
     },

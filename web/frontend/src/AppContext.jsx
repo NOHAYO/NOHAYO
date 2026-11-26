@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { api, setToken } from "./api/client.js";
+import { api, setToken, setSessionExpiredHandler } from "./api/client.js";
 
 const AppCtx = createContext(null);
 
@@ -40,12 +40,18 @@ export function AppProvider({ children }) {
     setUser(data.user);
   };
 
-  const logout = () => {
+  const logout = useCallback(() => {
     setToken(null);
     localStorage.removeItem("nohayo_user");
     setUser(null);
     setChild(null);
-  };
+  }, []);
+
+  // An expired or revoked NOHAYO token signs the user out instead of leaving every page erroring.
+  useEffect(() => {
+    setSessionExpiredHandler(logout);
+    return () => setSessionExpiredHandler(() => {});
+  }, [logout]);
 
   return (
     <AppCtx.Provider value={{ user, child, setChild, loading, login, signup, logout, reloadChildren: loadChildren }}>

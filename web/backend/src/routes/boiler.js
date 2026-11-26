@@ -16,34 +16,116 @@ export const MAX_TEMP = 71; // the range the Dolphin app/integration allows
 const router = Router();
 const dolphin = createDolphinClient();
 
+/** How each Dolphin failure reaches the browser: { error, code } with a status
+ *  the page can act on. Never 401 — that means "your NOHAYO session ended". */
+const FAILURES = {
+  bad_login: [400, "dolphin_bad_login", "Dolphin didn't accept that email or password."],
+  unauthorized: [409, "dolphin_relink", "Your Dolphin sign-in has expired. Enter your Dolphin password again."],
+  unreachable: [503, "dolphin_unreachable", "Can't reach Dolphin right now. Try again in a minute."],
+  offline: [409, "boiler_offline", "The boiler isn't responding. Check that it has power and Wi-Fi."],
+  not_found: [404, "boiler_not_found", "That boiler isn't on your Dolphin account."],
+  bad_reply: [502, "dolphin_error", "Dolphin had a problem with that request. Try again in a minute."],
+};
+
+function sendFailure(res, kind) {
+  const [status, code, error] = FAILURES[kind] ?? FAILURES.bad_reply;
+  return res.status(status).json({ error, code });
+}
+
 const wrap = (fn) => async (req, res, next) => {
   try {
     await fn(req, res, next);
   } catch (err) {
-    if (err instanceof DolphinError) return res.status(502).json({ error: err.message });
-    next(err);
+    if (!(err instanceof DolphinError)) return next(err);
+    let kind = err.code === "rejected" ? "bad_reply" : err.code;
+    // A device call was refused: find out whether the key or the boiler is the problem
+    // (Dolphin says "unauthorized" for someone else's boiler too).
+    const refused = err.code === "rejected" || err.code === "unauthorized";
+    if (refused && req.boiler && req.params.deviceName) kind = await diagnose(req.boiler, req.params.deviceName);
+    if (kind === "unauthorized") await markNeedsRelink(req.userId);
+    console.warn(`[boiler] ${req.method} ${req.baseUrl}${req.path}: ${kind} (${err.message})`);
+    sendFailure(res, kind);
   }
 };
 
+async function diagnose({ email, apiKey }, deviceName) {
+  try {
+    const devices = await dolphin.getDevices(email, apiKey);
+    return devices.some((d) => d.deviceName === deviceName) ? "offline" : "not_found";
+  } catch (err) {
+    return err instanceof DolphinError && err.code === "unauthorized" ? "unauthorized" : "unreachable";
+  }
+}
+
+/** Forget a key Dolphin no longer accepts, so we stop sending it and the page asks for the password. */
+async function markNeedsRelink(userId) {
+  await db.update(boilerAccounts).set({ apiKeyEncrypted: null }).where(eq(boilerAccounts.userId, userId));
+}
+
+/** Wrong-password guard: a few tries per user, then a cool-off, so the link
+ *  form can't be used to guess someone's Dolphin password. */
+export const LINK_MAX_FAILURES = 5;
+const LINK_WINDOW_MS = 15 * 60_000;
+const linkFailures = new Map(); // userId -> { count, resetAt }
+
+function linkLocked(userId) {
+  const entry = linkFailures.get(userId);
+  if (!entry) return false;
+  if (Date.now() > entry.resetAt) {
+    linkFailures.delete(userId);
+    return false;
+  }
+  return entry.count >= LINK_MAX_FAILURES;
+}
+
+function noteLinkFailure(userId) {
+  const entry = linkFailures.get(userId);
+  if (!entry || Date.now() > entry.resetAt) linkFailures.set(userId, { count: 1, resetAt: Date.now() + LINK_WINDOW_MS });
+  else entry.count += 1;
+}
+
 async function loadAccount(req, res, next) {
   const [row] = await db.select().from(boilerAccounts).where(eq(boilerAccounts.userId, req.userId));
-  if (!row) return res.status(404).json({ error: "No Dolphin boiler account linked yet." });
+  if (!row) return res.status(404).json({ error: "No Dolphin boiler account linked yet.", code: "not_linked" });
+  if (!row.apiKeyEncrypted) return sendFailure(res, "unauthorized");
   req.boiler = { email: row.dolphinEmail, apiKey: open(row.apiKeyEncrypted) };
   next();
+}
+
+/** One boiler's status for the overview. A boiler that doesn't answer is shown
+ *  as offline rather than failing the whole page. */
+async function overviewStatus(account, deviceName) {
+  try {
+    return { online: true, ...(await statusFor(account, deviceName)) };
+  } catch (err) {
+    // getDevices just accepted the key, so a refusal here is about the boiler itself.
+    if (err instanceof DolphinError && (err.code === "rejected" || err.code === "unauthorized")) return { deviceName, online: false };
+    throw err;
+  }
 }
 
 async function statusFor({ email, apiKey }, deviceName) {
   return { deviceName, ...(await dolphin.getStatus(email, apiKey, deviceName)) };
 }
 
-// GET /api/boiler -> { linked, email, devices: [{ deviceName, power, temperature, ... }] }
+// GET /api/boiler -> { linked, email, needsRelink?, devices: [{ deviceName, online, power, temperature, ... }] }
 router.get("/", wrap(async (req, res) => {
   const [row] = await db.select().from(boilerAccounts).where(eq(boilerAccounts.userId, req.userId));
   if (!row) return res.json({ linked: false, devices: [] });
+  if (!row.apiKeyEncrypted) return res.json({ linked: true, needsRelink: true, email: row.dolphinEmail, devices: [] });
 
   const account = { email: row.dolphinEmail, apiKey: open(row.apiKeyEncrypted) };
-  const devices = await dolphin.getDevices(account.email, account.apiKey);
-  const statuses = await Promise.all(devices.map((d) => statusFor(account, d.deviceName)));
+  let devices;
+  try {
+    devices = await dolphin.getDevices(account.email, account.apiKey);
+  } catch (err) {
+    if (err instanceof DolphinError && err.code === "unauthorized") {
+      await markNeedsRelink(req.userId);
+      return res.json({ linked: true, needsRelink: true, email: row.dolphinEmail, devices: [] });
+    }
+    throw err;
+  }
+  const statuses = await Promise.all(devices.map((d) => overviewStatus(account, d.deviceName)));
   res.json({ linked: true, email: row.dolphinEmail, devices: statuses });
 }));
 
@@ -55,10 +137,20 @@ const linkSchema = z.object({
 // POST /api/boiler/link { email, password } — the password is used once and discarded.
 router.post("/link", wrap(async (req, res) => {
   const parsed = linkSchema.safeParse(req.body);
-  if (!parsed.success) return res.status(400).json({ error: parsed.error.issues[0].message });
+  if (!parsed.success) return res.status(400).json({ error: "Enter your Dolphin email and password.", code: "invalid" });
   const { email, password } = parsed.data;
+  if (linkLocked(req.userId)) {
+    return res.status(429).json({ error: "Too many wrong passwords. Wait 15 minutes and try again.", code: "too_many_attempts" });
+  }
 
-  const apiKey = await dolphin.getApiKey(email, password);
+  let apiKey;
+  try {
+    apiKey = await dolphin.getApiKey(email, password);
+  } catch (err) {
+    if (err instanceof DolphinError && err.code === "bad_login") noteLinkFailure(req.userId);
+    throw err;
+  }
+  linkFailures.delete(req.userId);
   const devices = await dolphin.getDevices(email, apiKey); // proves the key works
 
   const values = { userId: req.userId, dolphinEmail: email, apiKeyEncrypted: seal(apiKey) };

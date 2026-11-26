@@ -13,6 +13,12 @@ import journalRoutes from "./routes/journal.js";
 import familyRoutes from "./routes/family.js";
 import boilerRoutes from "./routes/boiler.js";
 
+/** Name, message and stack only: never an error's attached fields (request bodies, configs, headers). */
+export function safeErrorLog(err) {
+  if (!(err instanceof Error)) return "Non-error thrown";
+  return err.stack || `${err.name}: ${err.message}`;
+}
+
 export function createApp() {
   const app = express();
 
@@ -32,7 +38,12 @@ export function createApp() {
   app.use("/api/boiler", requireAuth, boilerRoutes);
 
   app.use((err, req, res, next) => {
-    console.error(err);
+    // body-parser errors carry the raw request text (err.body), which can hold a
+    // password, so they're answered without logging the error object.
+    if (err.type === "entity.parse.failed" || err.type === "entity.too.large") {
+      return res.status(err.status || 400).json({ error: "Couldn't read that request.", code: "bad_request" });
+    }
+    console.error(safeErrorLog(err));
     res.status(500).json({ error: "Internal server error." });
   });
 

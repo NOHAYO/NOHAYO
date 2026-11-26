@@ -11,6 +11,7 @@ import insightsRoutes from "./routes/insights.js";
 import goalsRoutes from "./routes/goals.js";
 import journalRoutes from "./routes/journal.js";
 import familyRoutes from "./routes/family.js";
+import boilerRoutes from "./routes/boiler.js";
 
 export function createApp() {
   const app = express();
@@ -28,6 +29,7 @@ export function createApp() {
   app.use("/api/children/:childId/goals", requireAuth, goalsRoutes);
   app.use("/api/children/:childId/journal", requireAuth, journalRoutes);
   app.use("/api/children/:childId/family", requireAuth, familyRoutes);
+  app.use("/api/boiler", requireAuth, boilerRoutes);
 
   app.use((err, req, res, next) => {
     console.error(err);

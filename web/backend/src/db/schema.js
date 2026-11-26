@@ -93,3 +93,14 @@ export const familyMembers = pgTable("family_members", {
   status: memberStatusEnum("status").default("pending").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+/** A user's linked Dolphin smart-boiler account (see src/integrations/dolphin.js).
+ *  Only the API key Dolphin issues is kept, never the password, and it is
+ *  encrypted at rest (src/integrations/secretBox.js). */
+export const boilerAccounts = pgTable("boiler_accounts", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
+  dolphinEmail: varchar("dolphin_email", { length: 255 }).notNull(),
+  apiKeyEncrypted: text("api_key_encrypted").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});

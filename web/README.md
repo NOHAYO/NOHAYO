@@ -134,6 +134,45 @@ everything built in `web/frontend` today instead of a third rewrite, and it's th
 one of the three that doesn't require choosing a UI framework you haven't
 already committed to twice.
 
+## Boiler controls (Dolphin)
+
+**Family → 🔥 Home boiler** links a Dolphin smart boiler (api.dolphinboiler.com)
+to your NOHAYO account. From there you can see the water temperature, heat
+enough water for 1–4 showers, heat to a chosen temperature, stop heating, keep
+the water at a fixed temperature, and turn Shabbat mode on or off.
+
+- Dolphin has no official API. The client in `backend/src/integrations/dolphin.js`
+  follows the endpoints used by the community Home Assistant integration
+  (github.com/0xAlon/dolphin), so Dolphin could change them without notice.
+- The browser only talks to `/api/boiler/*`; the backend proxies to Dolphin.
+  Your Dolphin password is used once to get an API key and is never stored.
+  The key is stored AES-GCM-encrypted (`boiler_accounts` table) with
+  `SECRETS_KEY` (falls back to `JWT_SECRET`).
+- Temperatures are limited to 20–71 °C, the same range the Dolphin integration uses.
+
+**Test client.** `scripts/dolphin-cli.js` talks to Dolphin directly, without
+the NOHAYO backend:
+
+```bash
+cd backend
+export DOLPHIN_EMAIL=you@example.com
+read -s DOLPHIN_PASSWORD && export DOLPHIN_PASSWORD   # keeps it out of shell history
+npm run dolphin -- devices
+npm run dolphin -- status
+npm run dolphin -- showers 2      # heat enough for 2 showers
+npm run dolphin -- on 55          # heat to 55 °C
+npm run dolphin -- off
+npm run dolphin -- fixed 50
+npm run dolphin -- fixed off
+npm run dolphin -- shabbat on
+npm run dolphin -- shabbat off
+```
+
+**Without a real boiler.** `npm run dolphin:mock` starts a fake Dolphin API on
+:4100 (login `demo@example.com` / `demo-password`). Point the CLI or the backend
+at it with `DOLPHIN_BASE_URL=http://localhost:4100/HA/V1`. `npm test` runs the
+client and route tests against this mock, so they never touch a real boiler.
+
 ## Known gaps / next steps
 
 - **Family-member access isn't enforced yet.** `family_members` rows are

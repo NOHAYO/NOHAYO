@@ -48,6 +48,19 @@ describe("dolphin CLI (against the mock API)", () => {
     expect(r.stderr).toMatch(/Error: Dolphin rejected/);
   });
 
+  it("login with a wrong password says so instead of printing \"failed\" as a key", async () => {
+    const r = await cli(["login"], { DOLPHIN_API_KEY: "", DOLPHIN_PASSWORD: "wrong" });
+    expect(r.code).toBe(1);
+    expect(r.stdout).not.toMatch(/failed/);
+    expect(r.stderr).toMatch(/rejected that email or password/);
+  });
+
+  it("login checks a supplied API key before printing it", async () => {
+    const r = await cli(["login"], { DOLPHIN_API_KEY: "not-a-real-key" });
+    expect(r.code).toBe(1);
+    expect(r.stdout).toBe("");
+  });
+
   it("needs DOLPHIN_EMAIL", async () => {
     const r = await cli(["devices"], { DOLPHIN_EMAIL: "" });
     expect(r.code).toBe(1);

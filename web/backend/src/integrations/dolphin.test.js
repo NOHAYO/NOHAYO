@@ -18,8 +18,9 @@ describe("Dolphin client (against the mock API)", () => {
     expect(mock.calls.at(-1)).toEqual({ endpoint: "getAPIkey", fields: { email: MOCK_EMAIL, password: MOCK_PASSWORD } });
   });
 
-  it("rejects a wrong password", async () => {
-    await expect(client.getApiKey(MOCK_EMAIL, "nope")).rejects.toBeInstanceOf(DolphinError);
+  it("rejects a wrong password (the service replies with the bare word \"failed\")", async () => {
+    await expect(client.getApiKey(MOCK_EMAIL, "nope")).rejects.toThrow(/rejected that email or password/);
+    await expect(client.getApiKey("someone@else.com", MOCK_PASSWORD)).rejects.toThrow(/rejected/);
   });
 
   it("lists devices and reads status", async () => {
@@ -202,7 +203,7 @@ describe("Dolphin client replies the mock can't produce", () => {
     expect(devices).toEqual([{ deviceName: "12345" }]);
   });
 
-  it.each(["", "  ", '{"error":"bad login"}', "<html>login</html>", "Invalid email or password"])(
+  it.each(["failed", "FAILED", "Failure", "error", "false", "0", "", "  ", '{"error":"bad login"}', "<html>login</html>", "Invalid email or password"])(
     "treats getAPIkey reply %j as a failed login",
     async (body) => {
       await expect(with_(reply(body)).getApiKey("a@b.c", "pw")).rejects.toThrow(/rejected/);

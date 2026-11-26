@@ -42,7 +42,13 @@ class Boiler:
         if not email or not password:
             raise DolphinError("Enter your Dolphin email and password.", code="bad_login")
         key = self.client.get_api_key(email, password)
-        devices = self.client.get_devices(email, key)
+        try:
+            devices = self.client.get_devices(email, key)
+        except DolphinError as e:
+            # A "key" Dolphin won't accept straight away means the login didn't work.
+            if e.code == "unauthorized":
+                raise DolphinError("Dolphin rejected that email or password.", code="bad_login") from None
+            raise
         if not devices:
             raise DolphinError("Signed in, but this Dolphin account has no boilers.", code="rejected")
         if self.email and self.email != email:

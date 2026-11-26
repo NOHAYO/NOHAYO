@@ -57,6 +57,26 @@ def test_wrong_password(boiler):
     assert not boiler.signed_in
 
 
+@pytest.mark.parametrize("reply", ["failed", "Failed", "", "error", '{"error":"bad"}', "<html>no</html>"])
+def test_failed_login_replies_are_not_keys(boiler, fake, store, reply):
+    fake.bad_login_reply = reply
+    with pytest.raises(DolphinError) as e:
+        boiler.sign_in(EMAIL, "wrong-password")
+    assert e.value.code == "bad_login"
+    assert not boiler.signed_in
+    assert store.get_key(EMAIL) is None
+    assert "getDevices" not in fake.endpoints()
+
+
+def test_key_rejected_right_after_login_is_a_bad_login(boiler, fake):
+    # An unexpected failure word we don't know yet: the device list check catches it.
+    fake.bad_login_reply = "nope-unknown"
+    with pytest.raises(DolphinError) as e:
+        boiler.sign_in(EMAIL, "wrong-password")
+    assert e.value.code == "bad_login"
+    assert not boiler.signed_in
+
+
 def test_empty_credentials(boiler, fake):
     with pytest.raises(DolphinError):
         boiler.sign_in("", "")

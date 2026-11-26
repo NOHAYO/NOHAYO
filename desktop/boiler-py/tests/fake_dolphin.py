@@ -40,6 +40,8 @@ class FakeDolphin:
         self.offline = False
         self.outage: str | None = None
         self.api_key = API_KEY
+        # What getAPIkey sends for a wrong login. The real server sends "failed".
+        self.bad_login_reply = "failed"
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -127,7 +129,7 @@ class FakeDolphin:
         return {"ok": True}
 
     def h_getAPIkey(self, f):
-        return self.api_key if f.get("email") == EMAIL and f.get("password") == PASSWORD else ""
+        return self.api_key if f.get("email") == EMAIL and f.get("password") == PASSWORD else self.bad_login_reply
 
     def h_getDevices(self, f):
         return [{"deviceName": DEVICE}] if self._authed(f) else {"error": "unauthorized"}

@@ -136,6 +136,9 @@ def check_temp(t) -> int:
     return n
 
 
+_FAILURE_WORDS = re.compile(r"^(failed|fail|failure|error|invalid|wrong|false|null|none|unauthori[sz]ed|denied|0)$", re.I)
+
+
 class DolphinClient:
     def __init__(self, base_url: str | None = None, timeout: float | None = None):
         self.base_url = (base_url or os.environ.get("DOLPHIN_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
@@ -195,8 +198,9 @@ class DolphinClient:
             if e.code == "unauthorized":
                 raise DolphinError("Dolphin rejected that email or password.", code="bad_login") from None
             raise
-        # A failed login is an empty body or a JSON/HTML error, never a bare key.
-        if not text or text[0] in "{[<" or re.search(r"\s", text):
+        # A failed login is an empty body, a JSON/HTML error, or a bare word such
+        # as "failed" (what the real server sends for a wrong email or password).
+        if not text or text[0] in "{[<" or re.search(r"\s", text) or _FAILURE_WORDS.match(text):
             raise DolphinError("Dolphin rejected that email or password.", code="bad_login")
         return text
 

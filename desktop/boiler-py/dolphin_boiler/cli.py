@@ -8,6 +8,7 @@
     python -m dolphin_boiler stop             stop heating
     python -m dolphin_boiler devices          list boilers / pick one with --device
     python -m dolphin_boiler logout           forget the saved sign-in
+    python -m dolphin_boiler monitor ...      log + analyse every 10 minutes (see monitor/cli.py)
 
 The password is typed at a hidden prompt, never on the command line.
 """
@@ -59,6 +60,7 @@ def build_parser() -> argparse.ArgumentParser:
     shabbat.add_argument("state", choices=["on", "off"])
     sub.add_parser("stop", help="stop heating")
     sub.add_parser("gui", help="open the window")
+    sub.add_parser("monitor", help="log temperature, weather and energy; efficiency trends and alerts", add_help=False)
     return p
 
 
@@ -82,6 +84,11 @@ def open_window() -> int:
 
 
 def main(argv: list[str] | None = None, boiler: Boiler | None = None, password_prompt=getpass.getpass) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    if argv and argv[0] == "monitor":
+        from .monitor.cli import main as monitor_main
+
+        return monitor_main(argv[1:], boiler=boiler)
     args = build_parser().parse_args(argv)
     if args.cmd == "gui":
         return open_window()

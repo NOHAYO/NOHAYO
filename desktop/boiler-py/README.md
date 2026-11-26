@@ -78,6 +78,117 @@ or running `./boiler.sh` (Mac/Linux).
   start heating (Stop still works).
 - The temperature refreshes every 30 seconds, or press **Refresh**.
 
+## Monitor: temperature, weather, energy and early maintenance alerts
+
+The monitor reads the boiler and the outdoor weather **every 10 minutes**,
+keeps everything in a log on your Mac, and works out how efficiently the
+boiler heats and whether that is getting worse over time. It only *reads*
+from Dolphin; it never turns the boiler on or off.
+
+Each sample records, with the real time (UTC and Israel time):
+
+- water temperature, target, and whether the element is heating
+- electrical power and current (see "Power and current" below)
+- outdoor air temperature, humidity, rain, cloud cover, UV index and
+  sunshine (solar radiation, W/m²) at Revivim 78, Rosh HaAyin, from
+  [Open-Meteo](https://open-meteo.com) (free, no account)
+
+### Start it (Mac)
+
+```
+./boiler.sh login                 # once, if you haven't already
+./boiler.sh monitor sample        # one sample now: check it looks right
+./boiler.sh monitor config        # check tank size (150 L) and element watts
+./boiler.sh monitor install       # run every 10 minutes from now on
+```
+
+`install` adds a small launchd job (`~/Library/LaunchAgents/com.nohayo.boiler-monitor.plist`)
+that runs while you're logged in and survives restarts. If macOS asks whether
+Python may use your keychain, choose **Always Allow** (that's where the
+Dolphin sign-in key is). Output goes to `~/Library/Logs/boiler-monitor.log`.
+`./boiler.sh monitor uninstall` stops it; the data stays.
+
+Prefer a terminal window? `./boiler.sh monitor run` samples every 10 minutes
+until you press Ctrl+C (this also works on Windows and Linux).
+
+### Look at the results
+
+```
+./boiler.sh monitor chart         # opens a page with charts in your browser
+./boiler.sh monitor report        # the same as text
+./boiler.sh monitor export log.csv   # every sample, for Excel/Numbers
+```
+
+The chart page shows water vs outdoor temperature with heating times and
+sunshine, efficiency per heating cycle, electric vs solar energy per day,
+standby heat loss and element power. The log itself is
+`~/.config/dolphin-boiler/monitor.db` (SQLite).
+
+### How efficiency is worked out
+
+For each heating cycle:
+
+- **Electrical energy in**: from Dolphin's energy counter if it has one,
+  otherwise power × time the element was on.
+- **Heat gained by the water**: m·c·ΔT, with 150 L of water and
+  c = 4.186 kJ/kg·°C, which is **0.173 kWh per °C** for the whole tank.
+- **Corrections from the weather**: the tank's standby loss is learnt from
+  quiet nights (element off, no sun, no hot water used) against the outdoor
+  temperature, and the solar panels' gain is learnt from sunny hours against
+  the sunshine reading. Both are added/removed for each cycle.
+- **Efficiency** = heat the element put into the water ÷ electricity in.
+
+An electric element turns nearly all its electricity into heat, so a healthy
+tank reads roughly 90–100 %. What matters is **change over time**, so the
+monitor compares the first cycles it logged with the latest ones. Cycles
+where hot water was used while heating, or that were mostly solar, are kept
+in the log but left out of the trend.
+
+It needs a few days to learn the tank (until then it uses typical values and
+says so) and a few weeks before trends mean much.
+
+### Maintenance alerts
+
+Alerts appear in `monitor report`, on the chart page, and as a Mac
+notification the first time they're raised:
+
+| Alert | When | Likely cause |
+|---|---|---|
+| Efficiency down | 10 % (warning) / 20 % (critical) below the first cycles | scale on the element or tank floor, thermostat drift → descale/check |
+| Element power changed | 10 % less (or more) power than at first | element wear, or one turbo element failed |
+| Standby loss up | tank cools 30 % faster when idle | insulation, dripping pressure valve, solar loop flowing back at night |
+| Not warming | heating 30+ min with no rise | element, thermostat or breaker failed |
+| Overheating | water ≥ 85 °C | thermostat or solar overheat protection |
+| Offline | no answer from the boiler for an hour | Wi-Fi, Dolphin cloud, or sign-in |
+
+### Power and current
+
+Dolphin's status reply for this boiler includes `PowerW` (power now) and
+`TotalEnergyWh` (energy counter), from the Dolphin energy meter. The monitor
+uses them when present, and shows current as power ÷ 220 V. It also stores
+each raw Dolphin reply, so nothing is lost if the field names turn out
+different.
+
+If a reply has **no** power reading, the monitor says so ("estimated") and
+uses the element's rating × the time it was heating. Set the rating from the
+label on the boiler: `./boiler.sh monitor config --element-watts 2500`. The
+estimate is fine for energy totals, but it can't see an element losing power,
+and with 10-minute samples the on-time is only accurate to about ±10 minutes
+per cycle. For exact numbers, add a meter on the boiler's circuit, for example:
+
+- a DIN-rail energy meter with Wi-Fi (Shelly Pro EM / Shelly EM with a clamp)
+  fitted by an electrician on the boiler breaker, or
+- a clamp-on current sensor (CT) on the boiler's live wire with an
+  ESP32/Shelly EM reading it.
+
+Only an electrician should work in the switchboard. Tell Claude which meter
+you choose and the monitor can read it too.
+
+### Settings
+
+`./boiler.sh monitor config` shows them; change any with e.g.
+`--tank-litres 150 --element-watts 2500 --mains-volts 220 --latitude 32.0956 --longitude 34.9567 --interval-min 10`.
+
 ## Command line
 
 ```
@@ -88,6 +199,7 @@ boiler.bat shabbat on|off
 boiler.bat stop
 boiler.bat devices           # list boilers; use --device NAME to pick one
 boiler.bat logout            # forget the saved sign-in
+boiler.bat monitor report    # monitor commands: sample, run, install, chart, report, export, config
 ```
 
 ## Try it without a boiler
@@ -119,4 +231,6 @@ checks that the password and key never land in a file.
 - `dolphin_boiler/credentials.py` where the sign-in key is kept
 - `dolphin_boiler/gui.py` the window (tkinter)
 - `dolphin_boiler/cli.py` the command line
-- `tests/fake_dolphin.py` the fake Dolphin server
+- `dolphin_boiler/monitor/` the monitor: weather, log, analysis, alerts, charts, launchd
+- `tests/fake_dolphin.py` the fake Dolphin server (`fake.meter = True` adds power readings)
+- `tests/fake_weather.py` a fake Open-Meteo server

@@ -89,6 +89,12 @@ describe("Boiler controls API", () => {
     expect(res.body.shabbat).toBe(false);
   });
 
+  it("returns 502 when Dolphin refuses a command, e.g. a boiler not on this account", async () => {
+    const res = await request(app).post("/api/boiler/devices/SOMEONE-ELSES-BOILER/heat").set(auth).send({ temperature: 50 });
+    expect(res.status).toBe(502);
+    expect(res.body.error).toMatch(/refused/);
+  });
+
   it("unlinks", async () => {
     expect((await request(app).delete("/api/boiler/link").set(auth)).body).toEqual({ linked: false });
     expect((await request(app).get("/api/boiler").set(auth)).body.linked).toBe(false);

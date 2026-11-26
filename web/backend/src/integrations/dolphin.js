@@ -49,11 +49,34 @@ async function post(endpoint, fields, { base, fetchImpl = fetch } = {}) {
 }
 
 function parseJson(endpoint, text) {
+  let data;
   try {
-    return JSON.parse(text);
+    data = JSON.parse(text);
   } catch {
     throw new DolphinError(`Unexpected reply from Dolphin ${endpoint}.`, { body: text });
   }
+  return rejectErrorReply(endpoint, data, text);
+}
+
+/** Dolphin reports failures (bad key, unknown device) as HTTP 200 with an
+ *  `error` field, so a 2xx alone does not mean the command was accepted. */
+function rejectErrorReply(endpoint, data, text) {
+  if (data && typeof data === "object" && !Array.isArray(data) && data.error) {
+    throw new DolphinError(`Dolphin refused ${endpoint}: ${data.error}.`, { body: text });
+  }
+  return data;
+}
+
+/** Control commands: the body is usually small JSON, but may be empty or plain
+ *  text, so only a JSON error reply counts as a failure. */
+function checkCommand(endpoint, text) {
+  let data;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    return text;
+  }
+  return rejectErrorReply(endpoint, data, text);
 }
 
 /** Normalises getMainScreenData into stable camelCase fields. */
@@ -79,6 +102,7 @@ export function normaliseStatus(raw = {}) {
 export function createDolphinClient(opts = {}) {
   const call = (endpoint, fields) => post(endpoint, fields, opts);
   const json = async (endpoint, fields) => parseJson(endpoint, await call(endpoint, fields));
+  const command = async (endpoint, fields) => checkCommand(endpoint, await call(endpoint, fields));
 
   return {
     /** Exchanges the app login for an API key (plain-text reply). */
@@ -98,7 +122,11 @@ export function createDolphinClient(opts = {}) {
     },
 
     async getStatus(email, apiKey, deviceName) {
-      return normaliseStatus(await json("getMainScreenData", { email, API_Key: apiKey, deviceName }));
+      const data = await json("getMainScreenData", { email, API_Key: apiKey, deviceName });
+      if (!data || typeof data !== "object" || Array.isArray(data)) {
+        throw new DolphinError("Dolphin did not return boiler status.", { body: data });
+      }
+      return normaliseStatus(data);
     },
 
     async hasEnergyMeter(email, apiKey, deviceName) {
@@ -107,14 +135,14 @@ export function createDolphinClient(opts = {}) {
     },
 
     turnOn: (email, apiKey, deviceName, temperature) =>
-      call("turnOnManually", { email, API_Key: apiKey, deviceName, temperature }),
+      command("turnOnManually", { email, API_Key: apiKey, deviceName, temperature }),
     turnOff: (email, apiKey, deviceName) =>
-      call("turnOffManually", { email, API_Key: apiKey, deviceName }),
+      command("turnOffManually", { email, API_Key: apiKey, deviceName }),
     setFixedTemperature: (email, apiKey, deviceName, temperature) =>
-      call("setFixedTemperature", { email, API_Key: apiKey, deviceName, temperature }),
+      command("setFixedTemperature", { email, API_Key: apiKey, deviceName, temperature }),
     turnOffFixedTemperature: (email, apiKey, deviceName) =>
-      call("turnOffFixedTemperature", { email, API_Key: apiKey, deviceName }),
+      command("turnOffFixedTemperature", { email, API_Key: apiKey, deviceName }),
     setShabbat: (email, apiKey, deviceName, on) =>
-      call(on ? "enableShabbat" : "disableShabbat", { email, API_Key: apiKey, deviceName }),
+      command(on ? "enableShabbat" : "disableShabbat", { email, API_Key: apiKey, deviceName }),
   };
 }

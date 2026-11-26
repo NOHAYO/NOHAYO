@@ -32,7 +32,12 @@ export default function Boiler() {
 
   const unlink = async () => {
     if (!window.confirm("Disconnect your Dolphin account from NOHAYO?")) return;
-    await api.unlinkBoiler();
+    try {
+      await api.unlinkBoiler();
+    } catch (err) {
+      setError(err.message);
+      return;
+    }
     reload();
   };
 

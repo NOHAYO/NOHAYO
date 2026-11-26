@@ -133,7 +133,8 @@ async function main() {
       const name = await deviceArg(key, args[1]);
       const s = await client.getStatus(email, key, name);
       const shower = s.showers.find((x) => x.count === n);
-      if (!shower) throw new DolphinError(`No setting for ${args[0]} showers on this boiler.`);
+      if (!shower || shower.temperature === null) throw new DolphinError(`No setting for ${args[0]} showers on this boiler.`);
+      if (s.shabbat) throw new DolphinError("Shabbat mode is on. Turn it off to control the boiler.");
       if (s.temperature !== null && s.temperature >= shower.temperature) console.log("Already hot enough.");
       else await client.turnOn(email, key, name, Math.min(71, Math.max(20, Math.round(shower.temperature))));
       printStatus(name, await client.getStatus(email, key, name));

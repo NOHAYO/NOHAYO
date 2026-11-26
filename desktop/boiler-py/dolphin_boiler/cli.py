@@ -62,13 +62,29 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
+def open_window() -> int:
+    try:
+        import tkinter  # noqa: F401
+    except ImportError:
+        print("This Python has no window support (tkinter).", file=sys.stderr)
+        if sys.platform == "darwin":
+            v = f"{sys.version_info.major}.{sys.version_info.minor}"
+            print(f"On a Mac with Homebrew, install it with:  brew install python-tk@{v}", file=sys.stderr)
+            print("then delete the .venv folder here and run ./boiler.sh again.", file=sys.stderr)
+        else:
+            print("On Linux, install your distribution's python3-tk package.", file=sys.stderr)
+        print("The command line still works, e.g. ./boiler.sh status", file=sys.stderr)
+        return 1
+    from .gui import run
+
+    run()
+    return 0
+
+
 def main(argv: list[str] | None = None, boiler: Boiler | None = None, password_prompt=getpass.getpass) -> int:
     args = build_parser().parse_args(argv)
     if args.cmd == "gui":
-        from .gui import run
-
-        run()
-        return 0
+        return open_window()
 
     b = boiler or Boiler()
     base = os.environ.get("DOLPHIN_BASE_URL")
@@ -86,7 +102,11 @@ def main(argv: list[str] | None = None, boiler: Boiler | None = None, password_p
             if len(devices) > 1:
                 print("Other boilers on this account: " + ", ".join(d for d in devices if d != b.device))
             if not b.store.persistent:
-                print("Note: no system keychain found, so you'll need to sign in again next time.", file=sys.stderr)
+                print(
+                    "Note: the keyring package isn't available, so this sign-in only lasts for this one command.\n"
+                    "Use ./boiler.sh (Mac) or boiler.bat (Windows), which install it for you.",
+                    file=sys.stderr,
+                )
             return 0
         if args.cmd == "logout":
             b.sign_out()

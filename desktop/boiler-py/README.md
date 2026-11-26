@@ -33,6 +33,17 @@ signed in between commands, so the launchers install `keyring` for you.)
 2. Get this folder (`desktop/boiler-py`) onto your PC: download the repository
    from GitHub as a ZIP and unzip it, or `git clone` it.
 
+The first time you run `boiler.bat` or `./boiler.sh`, it makes a private
+Python environment in a `.venv` folder here and installs `keyring` into it.
+Nothing is installed system-wide, so this also works with Homebrew Python on
+a Mac. To start over, delete the `.venv` folder.
+
+**Mac with Homebrew Python:** the window needs Tk, which Homebrew ships
+separately. If `./boiler.sh` says "no window support", run
+`brew install python-tk@3.13` (use your Python version, which the message
+shows), delete `.venv`, and run `./boiler.sh` again. The command line works
+without it.
+
 ## Safe first check on the real boiler
 
 Do this once, while you're home and can hear or see the boiler. It reads the

@@ -9,19 +9,53 @@ export function setToken(token) {
   else localStorage.removeItem("nohayo_token");
 }
 
+/** An API failure. `code` is the server's machine-readable reason (e.g.
+ *  "boiler_offline", "dolphin_relink"), or "network" when the server couldn't be reached. */
+export class ApiError extends Error {
+  constructor(message, { status = 0, code = "" } = {}) {
+    super(message);
+    this.name = "ApiError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+let onSessionExpired = () => {};
+/** AppContext registers this to sign out when the NOHAYO token is rejected. */
+export function setSessionExpiredHandler(fn) {
+  onSessionExpired = fn;
+}
+
 async function request(path, { method = "GET", body } = {}) {
   const headers = { "Content-Type": "application/json" };
   const token = getToken();
   if (token) headers.Authorization = `Bearer ${token}`;
 
-  const res = await fetch(`${API_BASE}${path}`, {
-    method,
-    headers,
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  let res;
+  try {
+    res = await fetch(`${API_BASE}${path}`, {
+      method,
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+  } catch {
+    const offline = typeof navigator !== "undefined" && navigator.onLine === false;
+    throw new ApiError(
+      offline ? "You're offline. Check your internet connection." : "Can't reach NOHAYO right now. Try again in a moment.",
+      { code: "network" },
+    );
+  }
 
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || `Request failed (${res.status})`);
+  if (!res.ok) {
+    // Only a token we sent can expire; a 401 from the login form is just a wrong password.
+    if (res.status === 401 && token) {
+      setToken(null);
+      onSessionExpired();
+      throw new ApiError("Your session has ended. Please sign in again.", { status: 401, code: "session_expired" });
+    }
+    throw new ApiError(data.error || `Request failed (${res.status})`, { status: res.status, code: data.code || "" });
+  }
   return data;
 }
 
@@ -51,7 +85,8 @@ export const api = {
   listFamily: (childId) => request(`/children/${childId}/family`),
   inviteFamilyMember: (childId, payload) => request(`/children/${childId}/family`, { method: "POST", body: payload }),
 
-  // Dolphin boiler controls (backend proxies to the Dolphin cloud; the API key never reaches the browser)
+  // Dolphin boiler controls (backend proxies to the Dolphin cloud; the API key never reaches the browser,
+  // and the Dolphin password is sent once, to /boiler/link, and never kept here)
   getBoiler: () => request("/boiler"),
   linkBoiler: (email, password) => request("/boiler/link", { method: "POST", body: { email, password } }),
   unlinkBoiler: () => request("/boiler/link", { method: "DELETE" }),

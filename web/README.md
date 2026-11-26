@@ -150,6 +150,23 @@ the water at a fixed temperature, and turn Shabbat mode on or off.
   `SECRETS_KEY` (falls back to `JWT_SECRET`).
 - Temperatures are limited to 20–71 °C, the same range the Dolphin integration uses.
 
+**When things go wrong.** `/api/boiler` answers failures with `{ error, code }`,
+and the page shows a matching state:
+
+| code | status | page shows |
+|---|---|---|
+| `dolphin_bad_login` | 400 | "That email or password didn't work" on the sign-in form |
+| `too_many_attempts` | 429 | after 5 wrong passwords in 15 minutes (per user) |
+| `dolphin_relink` | 409 | "Sign in to Dolphin again": Dolphin rejected the stored key, which is then deleted |
+| `boiler_offline` | 409 | the card shows "Boiler offline" (in `GET /api/boiler` it's `online: false`) |
+| `boiler_not_found` | 404 | the boiler isn't on this Dolphin account |
+| `dolphin_unreachable` | 503 | "Dolphin isn't answering", with the last reading marked out of date |
+| `dolphin_error` | 502 | "Dolphin had a problem", same as above |
+
+Dolphin problems never return 401, because the page treats 401 as "your NOHAYO
+session ended" and signs out. Server logs name the failure kind only; request
+bodies, passwords and keys are never logged.
+
 **Test client.** `scripts/dolphin-cli.js` talks to Dolphin directly, without
 the NOHAYO backend:
 
@@ -170,6 +187,8 @@ npm run dolphin -- shabbat on | shabbat off
 :4100 (login `demo@example.com` / `demo-password`). Point the CLI or the backend
 at it with `DOLPHIN_BASE_URL=http://localhost:4100/HA/V1`. `npm test` runs the
 client and route tests against this mock, so they never touch a real boiler.
+Tests can make the mock misbehave with `mock.faults.offline`, `mock.faults.outage`
+(`"drop"`, `"http500"`, `"garbage"`) and `mock.revokeKey()`.
 
 ## Known gaps / next steps
 

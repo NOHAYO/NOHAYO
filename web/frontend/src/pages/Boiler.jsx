@@ -6,17 +6,27 @@ const MIN_TEMP = 20;
 const MAX_TEMP = 71;
 const REFRESH_MS = 30_000;
 
+/** What the page says for each failure code from /api/boiler (see backend routes/boiler.js). */
+const PAGE_PROBLEMS = {
+  network: { title: "No connection" },
+  dolphin_unreachable: { title: "Dolphin isn't answering" },
+  dolphin_error: { title: "Dolphin had a problem" },
+};
+
 /** Controls for a linked Dolphin smart boiler. */
 export default function Boiler() {
-  const [state, setState] = useState(null); // { linked, email, devices }
-  const [error, setError] = useState("");
+  const [state, setState] = useState(null); // { linked, email, needsRelink?, devices }
+  const [problem, setProblem] = useState(null); // ApiError from the last refresh, or null
+  const [updatedAt, setUpdatedAt] = useState(null);
 
   const reload = useCallback(async () => {
     try {
       setState(await api.getBoiler());
-      setError("");
+      setProblem(null);
+      setUpdatedAt(new Date());
     } catch (err) {
-      setError(err.message);
+      setProblem(err);
+      // Keep showing the last good reading (marked as out of date) rather than blanking the page.
       setState((s) => s ?? { linked: true, devices: [] });
     }
   }, []);
@@ -24,22 +34,31 @@ export default function Boiler() {
   useEffect(() => {
     reload();
     const id = setInterval(reload, REFRESH_MS);
-    return () => clearInterval(id);
+    window.addEventListener("online", reload);
+    return () => {
+      clearInterval(id);
+      window.removeEventListener("online", reload);
+    };
   }, [reload]);
 
   const replaceDevice = (status) =>
-    setState((s) => ({ ...s, devices: s.devices.map((d) => (d.deviceName === status.deviceName ? status : d)) }));
+    setState((s) => ({ ...s, devices: s.devices.map((d) => (d.deviceName === status.deviceName ? { ...d, ...status } : d)) }));
+
+  // A device command found the Dolphin sign-in expired: switch the page to the sign-in form.
+  const needRelink = () => setState((s) => ({ ...s, needsRelink: true, devices: [] }));
 
   const unlink = async () => {
     if (!window.confirm("Disconnect your Dolphin account from NOHAYO?")) return;
     try {
       await api.unlinkBoiler();
     } catch (err) {
-      setError(err.message);
+      setProblem(err);
       return;
     }
     reload();
   };
+
+  const pageProblem = problem && (PAGE_PROBLEMS[problem.code] ?? { title: "Couldn't load your boiler" });
 
   return (
     <div className="screen">
@@ -48,12 +67,27 @@ export default function Boiler() {
           "Loading…"
         ) : !state.linked ? (
           <LinkForm onLinked={reload} />
+        ) : state.needsRelink ? (
+          <>
+            <LinkForm
+              onLinked={reload}
+              email={state.email}
+              title="Sign in to Dolphin again"
+              intro="Dolphin stopped accepting NOHAYO's access, which happens when the Dolphin password changes. Enter your Dolphin password to reconnect. It's used once and not stored."
+            />
+            <button className="btn btn-link" onClick={unlink}>Disconnect Dolphin account</button>
+          </>
         ) : (
           <>
-            {error && <div className="error-text" style={{ marginBottom: 12 }}>{error}</div>}
-            {state.devices.length === 0 && !error && <p className="muted">No boilers on this Dolphin account.</p>}
+            {pageProblem && (
+              <Notice title={pageProblem.title} onRetry={reload}>
+                {problem.message}
+                {updatedAt && state.devices.length > 0 && ` Showing the reading from ${updatedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}.`}
+              </Notice>
+            )}
+            {state.devices.length === 0 && !problem && <p className="muted">No boilers on this Dolphin account.</p>}
             {state.devices.map((d) => (
-              <DeviceCard key={d.deviceName} device={d} onChange={replaceDevice} />
+              <DeviceCard key={d.deviceName} device={d} stale={!!problem} onChange={replaceDevice} onRelink={needRelink} />
             ))}
             {state.email && (
               <p className="muted" style={{ marginTop: 18, textAlign: "center" }}>
@@ -67,8 +101,24 @@ export default function Boiler() {
   );
 }
 
-function LinkForm({ onLinked }) {
-  const [email, setEmail] = useState("");
+function Notice({ title, children, onRetry }) {
+  return (
+    <div role="alert" className="card-outlined" style={{ marginBottom: 14, borderColor: "#E8B4A8", background: "#FDF1EE" }}>
+      <strong>{title}</strong>
+      <p className="muted" style={{ marginTop: 4 }}>{children}</p>
+      {onRetry && (
+        <button className="btn btn-outline" style={{ marginTop: 10 }} onClick={onRetry}>Try again</button>
+      )}
+    </div>
+  );
+}
+
+const LINK_ERRORS = {
+  dolphin_bad_login: "That email or password didn't work. Use the same login as the Dolphin app.",
+};
+
+function LinkForm({ onLinked, email: knownEmail = "", title = "Connect your Dolphin boiler", intro }) {
+  const [email, setEmail] = useState(knownEmail);
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -82,7 +132,8 @@ function LinkForm({ onLinked }) {
       setPassword("");
       onLinked();
     } catch (err) {
-      setError(err.message);
+      setError(LINK_ERRORS[err.code] ?? err.message);
+      if (err.code === "dolphin_bad_login") setPassword("");
     } finally {
       setBusy(false);
     }
@@ -90,16 +141,16 @@ function LinkForm({ onLinked }) {
 
   return (
     <form onSubmit={submit}>
-      <h1 className="headline" style={{ fontSize: 26 }}>Connect your Dolphin boiler</h1>
+      <h1 className="headline" style={{ fontSize: 26 }}>{title}</h1>
       <p className="muted" style={{ marginTop: 10 }}>
-        Sign in with the email and password you use in the Dolphin app. Your password is used once to get an
-        access key and is not stored.
+        {intro ??
+          "Sign in with the email and password you use in the Dolphin app. Your password is used once to get an access key and is not stored."}
       </p>
       <div className="col gap-12" style={{ marginTop: 22 }}>
         <input type="email" placeholder="Dolphin email" value={email} onChange={(e) => setEmail(e.target.value)} required autoComplete="username" />
         <input type="password" placeholder="Dolphin password" value={password} onChange={(e) => setPassword(e.target.value)} required autoComplete="current-password" />
       </div>
-      {error && <div className="error-text">{error}</div>}
+      {error && <div className="error-text" role="alert">{error}</div>}
       <button className="btn btn-primary" style={{ marginTop: 20 }} disabled={busy} type="submit">
         {busy ? "Connecting…" : "Connect"}
       </button>
@@ -107,7 +158,7 @@ function LinkForm({ onLinked }) {
   );
 }
 
-function DeviceCard({ device: d, onChange }) {
+function DeviceCard({ device: d, stale, onChange, onRelink }) {
   const [target, setTarget] = useState(d.targetTemperature ?? 55);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -116,13 +167,32 @@ function DeviceCard({ device: d, onChange }) {
     setBusy(true);
     setError("");
     try {
-      onChange(await fn());
+      onChange({ ...(await fn()), online: true });
     } catch (err) {
-      setError(err.message);
+      if (err.code === "dolphin_relink") return onRelink();
+      if (err.code === "boiler_offline") onChange({ deviceName: d.deviceName, online: false });
+      else setError(err.message);
     } finally {
       setBusy(false);
     }
   };
+
+  if (d.online === false) {
+    return (
+      <div className="card-outlined" style={{ marginBottom: 14 }}>
+        <div className="row-center">
+          <div className="col" style={{ flex: 1 }}>
+            <div className="label">{d.deviceName}</div>
+            <strong style={{ marginTop: 6 }}>Boiler offline</strong>
+            <span className="muted">
+              It isn't answering Dolphin. Check that it has power and Wi-Fi. We'll check again every 30 seconds.
+            </span>
+          </div>
+          <span className="badge" style={{ background: "var(--bg-cream-deep)", color: "var(--text-muted)" }}>Offline</span>
+        </div>
+      </div>
+    );
+  }
 
   const locked = d.shabbat || busy;
   const statusLine = d.shabbat
@@ -139,7 +209,7 @@ function DeviceCard({ device: d, onChange }) {
           <div className="headline" style={{ fontSize: 44, marginTop: 6 }}>
             {d.temperature ?? "–"}<span style={{ fontSize: 22 }}>°C</span>
           </div>
-          <span className="muted">{statusLine}</span>
+          <span className="muted">{statusLine}{stale ? " · may be out of date" : ""}</span>
         </div>
         <span
           className="badge"

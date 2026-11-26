@@ -55,7 +55,41 @@ describe("Dolphin client (against the mock API)", () => {
 
   it("errors on an unreachable host", async () => {
     const dead = createDolphinClient({ base: "http://127.0.0.1:1/HA/V1" });
-    await expect(dead.getDevices(MOCK_EMAIL, MOCK_API_KEY)).rejects.toBeInstanceOf(DolphinError);
+    await expect(dead.getDevices(MOCK_EMAIL, MOCK_API_KEY)).rejects.toMatchObject({ code: "unreachable" });
+  });
+
+  it("classifies failures", async () => {
+    await expect(client.getApiKey(MOCK_EMAIL, "nope")).rejects.toMatchObject({ code: "bad_login" });
+
+    mock.faults.offline = true;
+    await expect(client.getStatus(MOCK_EMAIL, MOCK_API_KEY, MOCK_DEVICE)).rejects.toMatchObject({ code: "rejected" });
+    await expect(client.turnOn(MOCK_EMAIL, MOCK_API_KEY, MOCK_DEVICE, 50)).rejects.toMatchObject({ code: "rejected" });
+    mock.reset();
+
+    // A rejected key used to make commands "succeed" silently; now it's an error.
+    await expect(client.turnOn(MOCK_EMAIL, "stale-key", MOCK_DEVICE, 50)).rejects.toMatchObject({ code: "unauthorized" });
+    await expect(client.getDevices(MOCK_EMAIL, "stale-key")).rejects.toMatchObject({ code: "unauthorized" });
+
+    for (const [outage, code] of [["drop", "unreachable"], ["http500", "bad_reply"], ["garbage", "bad_reply"]]) {
+      mock.faults.outage = outage;
+      await expect(client.getDevices(MOCK_EMAIL, MOCK_API_KEY)).rejects.toMatchObject({ code });
+    }
+    mock.reset();
+  });
+
+  it("times out instead of hanging", async () => {
+    const http = await import("node:http");
+    const hang = http.createServer(() => {}); // never answers
+    await new Promise((r) => hang.listen(0, r));
+    const slow = createDolphinClient({ base: `http://127.0.0.1:${hang.address().port}/HA/V1`, timeoutMs: 100 });
+    await expect(slow.getDevices(MOCK_EMAIL, MOCK_API_KEY)).rejects.toMatchObject({ code: "unreachable", message: expect.stringContaining("timeout") });
+    hang.closeAllConnections();
+    await new Promise((r) => hang.close(r));
+  });
+
+  it("keeps credentials out of errors", async () => {
+    const err = await client.getApiKey(MOCK_EMAIL, "secret-guess").catch((e) => e);
+    expect(JSON.stringify({ ...err, message: err.message })).not.toContain("secret-guess");
   });
 });
 
@@ -133,8 +167,10 @@ describe("Dolphin client replies the mock can't produce", () => {
   const reply = (body, status = 200) => async () => new Response(body, { status });
   const with_ = (fetchImpl) => createDolphinClient({ base: "http://dolphin.invalid/HA/V1", fetchImpl });
 
-  it("turns an HTTP 5xx into a DolphinError carrying the status", async () => {
-    await expect(with_(reply("oops", 503)).getDevices("a@b.c", "k")).rejects.toMatchObject({ status: 503, body: "oops" });
+  it("turns an HTTP 5xx into a DolphinError carrying the status, but not the reply body", async () => {
+    const err = await with_(reply("oops", 503)).getDevices("a@b.c", "k").catch((e) => e);
+    expect(err).toMatchObject({ status: 503, code: "bad_reply" });
+    expect(err).not.toHaveProperty("body");
   });
 
   it("rejects a non-JSON status reply", async () => {

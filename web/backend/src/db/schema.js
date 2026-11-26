@@ -101,6 +101,7 @@ export const boilerAccounts = pgTable("boiler_accounts", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   dolphinEmail: varchar("dolphin_email", { length: 255 }).notNull(),
-  apiKeyEncrypted: text("api_key_encrypted").notNull(),
+  // Null once Dolphin rejects the key: the user is asked for their password again.
+  apiKeyEncrypted: text("api_key_encrypted"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

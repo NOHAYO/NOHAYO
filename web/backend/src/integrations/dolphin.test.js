@@ -157,6 +157,18 @@ describe("Dolphin client error handling (against the mock API)", () => {
     expect(s).toMatchObject({ power: false, energy: 0 });
   });
 
+  it("stops manual heating when the water is already past the target", async () => {
+    mock.device.Temperature = 50;
+    await client.turnOn(MOCK_EMAIL, MOCK_API_KEY, MOCK_DEVICE, 40);
+    expect(await client.getStatus(MOCK_EMAIL, MOCK_API_KEY, MOCK_DEVICE)).toMatchObject({ power: false, temperature: 50 });
+  });
+
+  it("404s on inherited object names instead of crashing the mock", async () => {
+    const res = await fetch(`${base}/hasOwnProperty.php`, { method: "POST", body: "" });
+    expect(res.status).toBe(404);
+    expect(await client.getDevices(MOCK_EMAIL, MOCK_API_KEY)).toHaveLength(1);
+  });
+
   it("404s on an unknown endpoint as an HTTP error", async () => {
     const wrongPath = createDolphinClient({ base: `${base}/../V9` });
     await expect(wrongPath.getDevices(MOCK_EMAIL, MOCK_API_KEY)).rejects.toMatchObject({ name: "DolphinError", status: 404 });
@@ -206,6 +218,11 @@ describe("Dolphin client replies the mock can't produce", () => {
     await expect(with_(reply("OK")).turnOff("a@b.c", "k", "d")).resolves.toBe("OK");
   });
 
+  it("turns a failure while reading the reply body into a DolphinError", async () => {
+    const broken = async () => ({ ok: true, status: 200, text: () => Promise.reject(new Error("socket hang up")) });
+    await expect(with_(broken).getDevices("a@b.c", "k")).rejects.toMatchObject({ name: "DolphinError", code: "unreachable" });
+  });
+
   it("reports a timeout as such", async () => {
     const timeout = async () => {
       throw Object.assign(new Error("aborted"), { name: "TimeoutError" });
@@ -229,6 +246,11 @@ describe("normaliseStatus", () => {
     expect(normaliseStatus({})).toEqual({
       power: false, temperature: null, targetTemperature: null, energy: 0, shabbat: false, fixedTemperature: false, showers: [],
     });
+  });
+
+  it("treats non-numeric values as unknown rather than NaN", () => {
+    const s = normaliseStatus({ Temperature: "n/a", Energy: "?", showerTemperature: [{ temp: "bad" }] });
+    expect(s).toMatchObject({ temperature: null, energy: 0, showers: [{ count: 1, temperature: null }] });
   });
 
   it("keeps shower slots whose temperature is missing as null", () => {

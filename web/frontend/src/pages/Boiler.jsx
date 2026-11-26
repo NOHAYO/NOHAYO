@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import TopBar from "../components/TopBar.jsx";
 import { api } from "../api/client.js";
 
@@ -18,13 +18,20 @@ export default function Boiler() {
   const [state, setState] = useState(null); // { linked, email, needsRelink?, devices }
   const [problem, setProblem] = useState(null); // ApiError from the last refresh, or null
   const [updatedAt, setUpdatedAt] = useState(null);
+  // Bumped whenever a command or Disconnect completes, so a refresh that was
+  // already in flight can't overwrite the newer result with stale status.
+  const mutations = useRef(0);
 
   const reload = useCallback(async () => {
+    const startedAt = mutations.current;
     try {
-      setState(await api.getBoiler());
+      const next = await api.getBoiler();
+      if (startedAt !== mutations.current) return;
+      setState(next);
       setProblem(null);
       setUpdatedAt(new Date());
     } catch (err) {
+      if (startedAt !== mutations.current) return;
       setProblem(err);
       // Keep showing the last good reading (marked as out of date) rather than blanking the page.
       setState((s) => s ?? { linked: true, devices: [] });
@@ -41,11 +48,20 @@ export default function Boiler() {
     };
   }, [reload]);
 
-  const replaceDevice = (status) =>
+  const replaceDevice = (status) => {
+    mutations.current += 1;
     setState((s) => ({ ...s, devices: s.devices.map((d) => (d.deviceName === status.deviceName ? { ...d, ...status } : d)) }));
+  };
 
   // A device command found the Dolphin sign-in expired: switch the page to the sign-in form.
-  const needRelink = () => setState((s) => ({ ...s, needsRelink: true, devices: [] }));
+  const needRelink = () => {
+    mutations.current += 1;
+    setState((s) => ({ ...s, needsRelink: true, devices: [] }));
+  };
+  const onLinked = () => {
+    mutations.current += 1;
+    reload();
+  };
 
   const unlink = async () => {
     if (!window.confirm("Disconnect your Dolphin account from NOHAYO?")) return;
@@ -55,6 +71,7 @@ export default function Boiler() {
       setProblem(err);
       return;
     }
+    mutations.current += 1;
     reload();
   };
 
@@ -63,14 +80,15 @@ export default function Boiler() {
   return (
     <div className="screen">
       <TopBar title="Home boiler" />
+        {problem && state?.linked === false && <div className="error-text" role="alert" style={{ marginBottom: 12 }}>{problem.message}</div>}
         {state === null ? (
           "Loading…"
         ) : !state.linked ? (
-          <LinkForm onLinked={reload} />
+          <LinkForm onLinked={onLinked} />
         ) : state.needsRelink ? (
           <>
             <LinkForm
-              onLinked={reload}
+              onLinked={onLinked}
               email={state.email}
               title="Sign in to Dolphin again"
               intro="Dolphin stopped accepting NOHAYO's access, which happens when the Dolphin password changes. Enter your Dolphin password to reconnect. It's used once and not stored."
@@ -228,13 +246,14 @@ function DeviceCard({ device: d, stale, onChange, onRelink }) {
           <div className="label">Hot water for</div>
           <div className="row gap-8" style={{ flexWrap: "wrap", marginTop: 10 }}>
             {d.showers.map((s) => {
-              const ready = d.temperature !== null && s.temperature !== null && d.temperature >= s.temperature;
+              const known = s.temperature !== null;
+              const ready = d.temperature !== null && known && d.temperature >= s.temperature;
               return (
                 <button
                   key={s.count}
                   className={`chip${ready ? " selected" : ""}`}
-                  disabled={locked || ready}
-                  title={`Needs ${s.temperature}°C`}
+                  disabled={locked || ready || !known}
+                  title={known ? `Needs ${s.temperature}°C` : "This boiler reports no temperature for this setting"}
                   style={{ width: "auto", fontWeight: 700 }}
                   onClick={() => run(() => api.boilerShowers(d.deviceName, s.count))}
                 >

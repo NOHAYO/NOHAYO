@@ -66,6 +66,11 @@ class Status:
     shabbat: bool = False
     fixed_temperature: bool = False
     showers: list[Shower] = field(default_factory=list)
+    # Electrical readings, when the boiler has Dolphin's energy meter.
+    power_w: float | None = None          # PowerW: instant power draw
+    total_energy_wh: float | None = None  # TotalEnergyWh: running energy counter
+    # The reply as Dolphin sent it, so the monitor can keep fields we don't know yet.
+    raw: dict = field(default_factory=dict, repr=False)
 
     def shower(self, count: int) -> Shower | None:
         return next((s for s in self.showers if s.count == count), None)
@@ -110,7 +115,17 @@ def normalise_status(raw: dict) -> Status:
         shabbat=_on(raw.get("Shabbat")),
         fixed_temperature=_on(raw.get("fixedTemperature")),
         showers=showers,
+        power_w=_num(_first(raw, "PowerW", "powerW", "Power_W")),
+        total_energy_wh=_num(_first(raw, "TotalEnergyWh", "totalEnergyWh", "TotalEnergy")),
+        raw=dict(raw),
     )
+
+
+def _first(raw: dict, *keys):
+    for k in keys:
+        if k in raw:
+            return raw[k]
+    return None
 
 
 _AUTH_WORDS = re.compile(r"unauthori[sz]ed|api[ _-]?key|not logged|login|token|credential", re.I)

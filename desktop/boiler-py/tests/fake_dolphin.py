@@ -9,6 +9,9 @@ POST /HA/V1/<endpoint>.php protocol, one simulated boiler whose water warms
 
 Faults for tests: fake.offline = True, fake.outage = "http500" | "drop" | "garbage",
 fake.revoke_key().
+
+fake.meter = True adds the energy-meter fields the real boiler sends
+(PowerW, TotalEnergyWh); fake.element_w sets the simulated element power.
 """
 
 from __future__ import annotations
@@ -37,6 +40,9 @@ class FakeDolphin:
             "showerTemperature": [{"temp": 38}, {"temp": 45}, {"temp": 52}, {"temp": 58}],
         }
         self.calls: list[tuple[str, dict]] = []
+        self.meter = False
+        self.element_w = 2500.0
+        self.total_wh = 1000.0
         self.offline = False
         self.outage: str | None = None
         self.api_key = API_KEY
@@ -121,6 +127,12 @@ class FakeDolphin:
         if d["Power"] == "ON" and d["Temperature"] >= d["targetTemperature"] and d["fixedTemperature"] == "OFF":
             d["Power"] = "OFF"
         d["Energy"] = 13.2 if d["Power"] == "ON" else 0
+        if self.meter:
+            on = d["Power"] == "ON"
+            if on:
+                self.total_wh += self.element_w / 6  # one status read ~ 10 minutes of heating
+            d["PowerW"] = self.element_w if on else 0
+            d["TotalEnergyWh"] = round(self.total_wh, 1)
 
     def _cmd(self, f, change):
         if not self._owns(f):

@@ -162,8 +162,10 @@ npm run dolphin -- status
 npm run dolphin -- showers 2      # heat enough for 2 showers
 npm run dolphin -- on 55          # heat to 55 °C
 npm run dolphin -- off
-npm run dolphin -- fixed 50 | fixed off
-npm run dolphin -- shabbat on | shabbat off
+npm run dolphin -- fixed 50
+npm run dolphin -- fixed off
+npm run dolphin -- shabbat on
+npm run dolphin -- shabbat off
 ```
 
 **Without a real boiler.** `npm run dolphin:mock` starts a fake Dolphin API on

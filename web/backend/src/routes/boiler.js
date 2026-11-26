@@ -87,7 +87,7 @@ function parseTemperature(req, res) {
 }
 
 const device = Router({ mergeParams: true });
-router.use("/devices/:deviceName", loadAccount, device);
+router.use("/devices/:deviceName", wrap(loadAccount), device);
 
 device.get("/", wrap(async (req, res) => {
   res.json(await statusFor(req.boiler, req.params.deviceName));
@@ -106,9 +106,10 @@ device.post("/heat", wrap(async (req, res) => {
 device.post("/off", wrap(async (req, res) => {
   const { email, apiKey } = req.boiler;
   const name = req.params.deviceName;
-  const before = await dolphin.getStatus(email, apiKey, name);
+  // Stop first and don't depend on a status read: a stop must go through even
+  // when status is unavailable. Clearing fixed mode when it's already off is harmless.
   await dolphin.turnOff(email, apiKey, name);
-  if (before.fixedTemperature) await dolphin.turnOffFixedTemperature(email, apiKey, name);
+  await dolphin.turnOffFixedTemperature(email, apiKey, name);
   res.json(await statusFor(req.boiler, name));
 }));
 

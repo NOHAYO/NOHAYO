@@ -95,6 +95,18 @@ describe("Boiler controls API", () => {
     expect(res.body.error).toMatch(/refused/);
   });
 
+  it("answers with an error, not a hung request, when the stored key can't be decrypted", async () => {
+    const { rows } = await pool.query("select api_key_encrypted from boiler_accounts where dolphin_email = $1", [MOCK_EMAIL]);
+    const good = rows[0].api_key_encrypted;
+    await pool.query("update boiler_accounts set api_key_encrypted = 'v1:garbage' where dolphin_email = $1", [MOCK_EMAIL]);
+    try {
+      const res = await request(app).get(dev).set(auth).timeout(3000);
+      expect(res.status).toBe(500);
+    } finally {
+      await pool.query("update boiler_accounts set api_key_encrypted = $1 where dolphin_email = $2", [good, MOCK_EMAIL]);
+    }
+  });
+
   it("unlinks", async () => {
     expect((await request(app).delete("/api/boiler/link").set(auth)).body).toEqual({ linked: false });
     expect((await request(app).get("/api/boiler").set(auth)).body.linked).toBe(false);

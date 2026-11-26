@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import TopBar from "../components/TopBar.jsx";
 import { api } from "../api/client.js";
 
@@ -10,12 +10,19 @@ const REFRESH_MS = 30_000;
 export default function Boiler() {
   const [state, setState] = useState(null); // { linked, email, devices }
   const [error, setError] = useState("");
+  // Bumped whenever a command or Disconnect completes, so a refresh that was
+  // already in flight can't overwrite the newer result with stale status.
+  const mutations = useRef(0);
 
   const reload = useCallback(async () => {
+    const startedAt = mutations.current;
     try {
-      setState(await api.getBoiler());
+      const next = await api.getBoiler();
+      if (startedAt !== mutations.current) return;
+      setState(next);
       setError("");
     } catch (err) {
+      if (startedAt !== mutations.current) return;
       setError(err.message);
       setState((s) => s ?? { linked: true, devices: [] });
     }
@@ -27,8 +34,10 @@ export default function Boiler() {
     return () => clearInterval(id);
   }, [reload]);
 
-  const replaceDevice = (status) =>
+  const replaceDevice = (status) => {
+    mutations.current += 1;
     setState((s) => ({ ...s, devices: s.devices.map((d) => (d.deviceName === status.deviceName ? status : d)) }));
+  };
 
   const unlink = async () => {
     if (!window.confirm("Disconnect your Dolphin account from NOHAYO?")) return;
@@ -38,16 +47,18 @@ export default function Boiler() {
       setError(err.message);
       return;
     }
+    mutations.current += 1;
     reload();
   };
 
   return (
     <div className="screen">
       <TopBar title="Home boiler" />
+        {error && state?.linked === false && <div className="error-text" style={{ marginBottom: 12 }}>{error}</div>}
         {state === null ? (
           "Loading…"
         ) : !state.linked ? (
-          <LinkForm onLinked={reload} />
+          <LinkForm onLinked={() => { mutations.current += 1; reload(); }} />
         ) : (
           <>
             {error && <div className="error-text" style={{ marginBottom: 12 }}>{error}</div>}
@@ -158,13 +169,14 @@ function DeviceCard({ device: d, onChange }) {
           <div className="label">Hot water for</div>
           <div className="row gap-8" style={{ flexWrap: "wrap", marginTop: 10 }}>
             {d.showers.map((s) => {
-              const ready = d.temperature !== null && s.temperature !== null && d.temperature >= s.temperature;
+              const known = s.temperature !== null;
+              const ready = d.temperature !== null && known && d.temperature >= s.temperature;
               return (
                 <button
                   key={s.count}
                   className={`chip${ready ? " selected" : ""}`}
-                  disabled={locked || ready}
-                  title={`Needs ${s.temperature}°C`}
+                  disabled={locked || ready || !known}
+                  title={known ? `Needs ${s.temperature}°C` : "This boiler reports no temperature for this setting"}
                   style={{ width: "auto", fontWeight: 700 }}
                   onClick={() => run(() => api.boilerShowers(d.deviceName, s.count))}
                 >

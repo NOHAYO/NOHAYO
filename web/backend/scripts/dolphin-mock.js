@@ -33,7 +33,10 @@ export function createMockDolphin() {
     // Each status read nudges the water 2 °C toward the target while heating.
     if (device.Power === "ON" && device.Temperature < device.targetTemperature) {
       device.Temperature = Math.min(device.targetTemperature, device.Temperature + 2);
-      if (device.Temperature >= device.targetTemperature && device.fixedTemperature === "OFF") device.Power = "OFF";
+    }
+    // Manual heating stops once the water is hot enough (even if it already was).
+    if (device.Power === "ON" && device.Temperature >= device.targetTemperature && device.fixedTemperature === "OFF") {
+      device.Power = "OFF";
     }
     device.Energy = device.Power === "ON" ? 13.2 : 0;
   };
@@ -79,7 +82,7 @@ export function createMockDolphin() {
 
   const server = http.createServer((req, res) => {
     const match = req.url.match(/^\/HA\/V1\/+([A-Za-z]+)\.php$/);
-    const handler = match && handlers[match[1]];
+    const handler = match && Object.hasOwn(handlers, match[1]) && handlers[match[1]];
     if (req.method !== "POST" || !handler) {
       res.writeHead(404).end("not found");
       return;

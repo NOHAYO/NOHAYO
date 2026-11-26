@@ -32,6 +32,7 @@ async function post(endpoint, fields, { base, fetchImpl = fetch } = {}) {
   for (const [k, v] of Object.entries(fields)) if (v !== undefined) body.set(k, String(v));
 
   let res;
+  let text;
   try {
     res = await fetchImpl(`${baseUrl(base)}/${endpoint}.php`, {
       method: "POST",
@@ -39,11 +40,11 @@ async function post(endpoint, fields, { base, fetchImpl = fetch } = {}) {
       body,
       signal: AbortSignal.timeout(TIMEOUT_MS),
     });
+    text = await res.text();
   } catch (err) {
     throw new DolphinError(`Could not reach Dolphin (${err.name === "TimeoutError" ? "timeout" : err.message}).`);
   }
 
-  const text = await res.text();
   if (!res.ok) throw new DolphinError(`Dolphin returned HTTP ${res.status}.`, { status: res.status, body: text });
   return text;
 }
@@ -82,7 +83,11 @@ function checkCommand(endpoint, text) {
 /** Normalises getMainScreenData into stable camelCase fields. */
 export function normaliseStatus(raw = {}) {
   const on = (v) => String(v).toUpperCase() === "ON";
-  const num = (v) => (v === undefined || v === null || v === "" ? null : Number(v));
+  const num = (v) => {
+    if (v === undefined || v === null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
   const temperature = num(raw.Temperature);
   const target = num(raw.targetTemperature);
   return {
